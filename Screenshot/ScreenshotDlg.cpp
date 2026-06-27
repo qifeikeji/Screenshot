@@ -4,6 +4,7 @@
 #include "CatchScreenDlg.h"
 #include "AppSettings.h"
 #include "SettingsDlg.h"
+#include "ScreenCapture.h"
 
 CScreenshotDlg::CScreenshotDlg(CWnd* pParent)
 	: CDialog(CScreenshotDlg::IDD, pParent)
@@ -187,6 +188,9 @@ void CScreenshotDlg::StartScreenshot()
 {
 	if (!IsWindowVisible())
 		return;
+	POINT cursor = {};
+	GetCursorPos(&cursor);
+	SetCaptureCursorAnchor(cursor);
 	::ShowWindow(m_hWnd, SW_HIDE);
 	AfxBeginThread(SccreenShot_Thread, (LPVOID)GetSafeHwnd());
 }

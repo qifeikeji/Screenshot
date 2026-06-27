@@ -13,6 +13,16 @@
 #include "DarkToolBar.h"
 #include "AnnotationLayer.h"
 
+enum AnnotTool
+{
+	AnnotToolNone = 0,
+	AnnotToolArrow,
+	AnnotToolRect,
+	AnnotToolEllipse,
+	AnnotToolBrush,
+	AnnotToolText
+};
+
 class CCatchScreenDlg : public CDialog
 {
 public:
@@ -43,6 +53,12 @@ public:
 	CRect m_annotationRect;
 	CRect m_rectPrevDrag;
 
+	AnnotTool m_activeTool;
+	BOOL m_bAnnotating;
+	CPoint m_annotStart;
+	CPoint m_annotLast;
+	CRect m_previewRect;
+
 public:
 	HBITMAP CopyScreenToBitmap(LPRECT lpRect, BOOL bSave = FALSE);
 	HBITMAP BuildSelectionBitmap(const CRect& clientRect) const;
@@ -55,6 +71,13 @@ public:
 	void PositionToolBar();
 	void BeginSelectionAt(CPoint point);
 	void CancelCurrentSelection();
+
+	BOOL ClientToAnnot(CPoint client, CPoint& out) const;
+	BOOL IsPointInSelection(CPoint client) const;
+	void InvalidateAnnotationView();
+	void DrawPreviewShape(HDC hdc) const;
+	BOOL PromptAnnotText(CString& text);
+	void FinishSelectionIfValid(const CPoint& endPt);
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);

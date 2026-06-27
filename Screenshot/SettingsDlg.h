@@ -1,6 +1,8 @@
 #pragma once
 
 #include "resource.h"
+#include "DarkButton.h"
+#include "DarkHotKeyFrame.h"
 
 class CSettingsDlg : public CDialog
 {
@@ -18,4 +20,7 @@ protected:
 
 private:
 	CBrush m_brBg;
+	CDarkButton m_btnOk;
+	CDarkButton m_btnCancel;
+	CDarkHotKeyFrame m_hotKeyFrame;
 };

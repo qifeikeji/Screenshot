@@ -51,7 +51,8 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 
 	m_hImageList = ImageList_Create(18, 18, ILC_COLOR32, kButtonCount, 1);
 	static const UINT kIconIds[kButtonCount] = {
-		IDB_RECTANGLE, IDB_CIRCLE, IDB_BRUSH, IDB_EXIT, IDB_FINISH
+		IDB_UNDO, IDB_ARROW, IDB_RECTANGLE, IDB_CIRCLE, IDB_BRUSH,
+		IDB_TEXT, IDB_SAVE, IDB_EXIT, IDB_FINISH
 	};
 	for (int i = 0; i < kButtonCount; ++i)
 	{
@@ -164,14 +165,8 @@ namespace {
 
 void DrawToolButton(Gdiplus::Graphics& g, HIMAGELIST imageList, const CRect& rc, int index, bool hover, bool pressed)
 {
-	Gdiplus::GraphicsPath path;
-	const Gdiplus::REAL r = 7.f;
-	path.AddArc((Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.top, r * 2, r * 2, 180, 90);
-	path.AddArc((Gdiplus::REAL)rc.right - r * 2, (Gdiplus::REAL)rc.top, r * 2, r * 2, 270, 90);
-	path.AddArc((Gdiplus::REAL)rc.right - r * 2, (Gdiplus::REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
-	path.AddArc((Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
-	path.CloseFigure();
-
+	Gdiplus::RectF rect((Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.top,
+		(Gdiplus::REAL)rc.Width(), (Gdiplus::REAL)rc.Height());
 	Gdiplus::Color fill(220, 44, 44, 46);
 	if (pressed)
 		fill = Gdiplus::Color(240, 28, 28, 30);
@@ -179,8 +174,8 @@ void DrawToolButton(Gdiplus::Graphics& g, HIMAGELIST imageList, const CRect& rc,
 		fill = Gdiplus::Color(240, 72, 72, 74);
 	Gdiplus::SolidBrush brush(fill);
 	Gdiplus::Pen pen(Gdiplus::Color(180, 90, 90, 92), 1.f);
-	g.FillPath(&brush, &path);
-	g.DrawPath(&pen, &path);
+	g.FillRectangle(&brush, rect);
+	g.DrawRectangle(&pen, rect);
 
 	if (imageList && index >= 0)
 	{
@@ -222,18 +217,12 @@ void CDarkToolBar::OnPaint()
 	CBitmap* pOldBmp = memDC.SelectObject(&bmp);
 
 	Graphics g(memDC.m_hDC);
-	g.SetSmoothingMode(SmoothingModeAntiAlias);
-	GraphicsPath bg;
-	const REAL r = 10.f;
-	bg.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
-	bg.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
-	bg.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
-	bg.AddArc((REAL)rc.left, (REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
-	bg.CloseFigure();
-	SolidBrush panel(Color(235, 36, 36, 38));
+	g.SetSmoothingMode(SmoothingModeNone);
+	RectF panel((REAL)rc.left, (REAL)rc.top, (REAL)rc.Width(), (REAL)rc.Height());
+	SolidBrush panelBrush(Color(235, 36, 36, 38));
 	Pen border(Color(200, 58, 58, 60), 1.f);
-	g.FillPath(&panel, &bg);
-	g.DrawPath(&border, &bg);
+	g.FillRectangle(&panelBrush, panel);
+	g.DrawRectangle(&border, panel);
 
 	for (int i = 0; i < kButtonCount; ++i)
 	{

@@ -6,6 +6,8 @@ struct AppSettings
 	int windowHeight;
 	UINT hotkeyModifiers;
 	UINT hotkeyVk;
+	BOOL copyAndExitAfterSelect;
+	CString saveDirectory;
 
 	AppSettings();
 

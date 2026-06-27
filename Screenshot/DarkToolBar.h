@@ -31,7 +31,7 @@ private:
 	int m_hoverIndex;
 	int m_pressedIndex;
 	bool m_trackingLeave;
-	static const int kButtonCount = 5;
+	static const int kButtonCount = 9;
 	static const int kButtonSize = 28;
 	static const int kPadding = 6;
 };

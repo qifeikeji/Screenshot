@@ -19,6 +19,8 @@ void AppSettings::SetDefaults()
 	windowHeight = 88;
 	hotkeyModifiers = MOD_CONTROL | MOD_ALT;
 	hotkeyVk = (UINT)'A';
+	copyAndExitAfterSelect = FALSE;
+	saveDirectory.Empty();
 }
 
 void AppSettings::Clamp()
@@ -57,6 +59,59 @@ static int ParseJsonInt(const CString& json, LPCTSTR key, int fallback)
 	while (pos < json.GetLength() && (json[pos] == _T(' ') || json[pos] == _T('\t')))
 		pos++;
 	return _ttoi(json.Mid(pos));
+}
+
+static BOOL ParseJsonBool(const CString& json, LPCTSTR key, BOOL fallback)
+{
+	CString pattern;
+	pattern.Format(_T("\"%s\""), key);
+	int pos = json.Find(pattern);
+	if (pos < 0)
+		return fallback;
+	pos = json.Find(_T(':'), pos);
+	if (pos < 0)
+		return fallback;
+	pos++;
+	while (pos < json.GetLength() && (json[pos] == _T(' ') || json[pos] == _T('\t')))
+		pos++;
+	if (json.Mid(pos, 4).CompareNoCase(_T("true")) == 0)
+		return TRUE;
+	if (json.Mid(pos, 5).CompareNoCase(_T("false")) == 0)
+		return FALSE;
+	return _ttoi(json.Mid(pos)) != 0;
+}
+
+static CString ParseJsonString(const CString& json, LPCTSTR key, const CString& fallback)
+{
+	CString pattern;
+	pattern.Format(_T("\"%s\""), key);
+	int pos = json.Find(pattern);
+	if (pos < 0)
+		return fallback;
+	pos = json.Find(_T(':'), pos);
+	if (pos < 0)
+		return fallback;
+	pos = json.Find(_T('\"'), pos);
+	if (pos < 0)
+		return fallback;
+	const int start = pos + 1;
+	const int end = json.Find(_T('\"'), start);
+	if (end < 0)
+		return fallback;
+	return json.Mid(start, end - start);
+}
+
+static CString JsonEscape(const CString& s)
+{
+	CString out;
+	for (int i = 0; i < s.GetLength(); ++i)
+	{
+		const TCHAR c = s[i];
+		if (c == _T('\\') || c == _T('\"'))
+			out += _T('\\');
+		out += c;
+	}
+	return out;
 }
 
 void HotKeyToHotKeyCtrl(UINT mod, UINT vk, WORD& hotKeyWord)
@@ -101,6 +156,8 @@ BOOL AppSettings::Load()
 	windowHeight = ParseJsonInt(json, _T("windowHeight"), windowHeight);
 	hotkeyModifiers = (UINT)ParseJsonInt(json, _T("hotkeyModifiers"), (int)hotkeyModifiers);
 	hotkeyVk = (UINT)ParseJsonInt(json, _T("hotkeyVk"), (int)hotkeyVk);
+	copyAndExitAfterSelect = ParseJsonBool(json, _T("copyAndExitAfterSelect"), copyAndExitAfterSelect);
+	saveDirectory = ParseJsonString(json, _T("saveDirectory"), saveDirectory);
 	Clamp();
 	return TRUE;
 }
@@ -116,9 +173,13 @@ BOOL AppSettings::Save() const
 		_T("  \"windowWidth\": %d,\r\n")
 		_T("  \"windowHeight\": %d,\r\n")
 		_T("  \"hotkeyModifiers\": %u,\r\n")
-		_T("  \"hotkeyVk\": %u\r\n")
+		_T("  \"hotkeyVk\": %u,\r\n")
+		_T("  \"copyAndExitAfterSelect\": %s,\r\n")
+		_T("  \"saveDirectory\": \"%s\"\r\n")
 		_T("}\r\n"),
-		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk);
+		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk,
+		temp.copyAndExitAfterSelect ? _T("true") : _T("false"),
+		(LPCTSTR)JsonEscape(temp.saveDirectory));
 
 	try
 	{

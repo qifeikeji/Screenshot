@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "ScreenCapture.h"
+#include <shellscalingapi.h>
+
+#pragma comment(lib, "Shcore.lib")
 
 struct MonitorEnumCtx
 {
@@ -14,6 +17,61 @@ struct CaptureCtx
 	int originX;
 	int originY;
 };
+
+namespace {
+
+struct MonitorDpiCtx
+{
+	UINT firstDpiX;
+	UINT firstDpiY;
+	BOOL hasMonitor;
+	BOOL mixed;
+};
+
+static POINT g_captureCursorAnchor = { INT_MIN, INT_MIN };
+
+static BOOL CALLBACK MonitorDpiProc(HMONITOR hMonitor, HDC, LPRECT, LPARAM lp)
+{
+	MonitorDpiCtx* ctx = reinterpret_cast<MonitorDpiCtx*>(lp);
+	UINT dpiX = 0;
+	UINT dpiY = 0;
+	if (FAILED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)))
+		return TRUE;
+	if (!ctx->hasMonitor)
+	{
+		ctx->firstDpiX = dpiX;
+		ctx->firstDpiY = dpiY;
+		ctx->hasMonitor = TRUE;
+		return TRUE;
+	}
+	if (dpiX != ctx->firstDpiX || dpiY != ctx->firstDpiY)
+		ctx->mixed = TRUE;
+	return TRUE;
+}
+
+} // namespace
+
+void SetCaptureCursorAnchor(POINT screenPt)
+{
+	g_captureCursorAnchor = screenPt;
+}
+
+BOOL GetCaptureCursorAnchor(POINT* outScreenPt)
+{
+	if (!outScreenPt || g_captureCursorAnchor.x == INT_MIN)
+		return FALSE;
+	*outScreenPt = g_captureCursorAnchor;
+	return TRUE;
+}
+
+BOOL HasMixedMonitorScaling()
+{
+	MonitorDpiCtx ctx = {};
+	ctx.hasMonitor = FALSE;
+	ctx.mixed = FALSE;
+	EnumDisplayMonitors(NULL, NULL, MonitorDpiProc, reinterpret_cast<LPARAM>(&ctx));
+	return ctx.mixed;
+}
 
 // Full virtual-desktop bitmaps use DIB sections (not CreateCompatibleBitmap on the
 // primary display DC) so width is not capped by the main GPU/GDI surface (~900px gaps).

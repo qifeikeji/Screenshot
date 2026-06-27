@@ -10,6 +10,9 @@ struct VirtualScreenInfo
 
 void QueryVirtualScreen(VirtualScreenInfo* info);
 BOOL QueryMonitorAtPoint(POINT screenPt, VirtualScreenInfo* info);
+BOOL HasMixedMonitorScaling();
+void SetCaptureCursorAnchor(POINT screenPt);
+BOOL GetCaptureCursorAnchor(POINT* outScreenPt);
 BOOL GetBitmapPixelSize(HBITMAP hbmp, int* outWidth, int* outHeight);
 HBITMAP CaptureScreenRect(const VirtualScreenInfo& info);
 HBITMAP CaptureVirtualDesktop(const VirtualScreenInfo& info);
