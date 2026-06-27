@@ -52,7 +52,7 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 	m_hImageList = ImageList_Create(18, 18, ILC_COLOR32, kButtonCount, 1);
 	static const UINT kIconIds[kButtonCount] = {
 		IDB_UNDO, IDB_ARROW, IDB_RECTANGLE, IDB_CIRCLE, IDB_BRUSH,
-		IDB_TEXT, IDB_SAVE, IDB_EXIT, IDB_FINISH
+		IDB_TEXT, IDB_SAVE, IDB_FOLDER, IDB_EXIT, IDB_FINISH
 	};
 	for (int i = 0; i < kButtonCount; ++i)
 	{

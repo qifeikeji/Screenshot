@@ -22,4 +22,6 @@ private:
 	QLineEdit* m_saveDirEdit = nullptr;
 	QCheckBox* m_checkCopyExit = nullptr;
 	QCheckBox* m_checkSingleMonitor = nullptr;
+	QCheckBox* m_checkLaunchAtStartup = nullptr;
+	QCheckBox* m_checkStartMinimized = nullptr;
 };

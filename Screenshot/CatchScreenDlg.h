@@ -12,6 +12,7 @@
 #endif
 #include "DarkToolBar.h"
 #include "AnnotationLayer.h"
+#include "TextAnnotOverlay.h"
 
 enum AnnotTool
 {
@@ -59,6 +60,13 @@ public:
 	CPoint m_annotLast;
 	CRect m_previewRect;
 
+	CTextAnnotOverlay m_textOverlay;
+	CEdit m_inlineTextEdit;
+	CFont m_textAnnotFont;
+	int m_editingTextIndex;
+	int m_dragTextIndex;
+	CPoint m_dragTextGrabOffset;
+
 public:
 	HBITMAP CopyScreenToBitmap(LPRECT lpRect, BOOL bSave = FALSE);
 	HBITMAP BuildSelectionBitmap(const CRect& clientRect) const;
@@ -78,6 +86,14 @@ public:
 	void DrawPreviewShape(HDC hdc) const;
 	BOOL PromptAnnotText(CString& text);
 	void FinishSelectionIfValid(const CPoint& endPt);
+	void OpenSaveFolder();
+	void ClearTextOverlay();
+	void EndTextEdit(BOOL commit);
+	void BeginTextEdit(int index);
+	void UpdateTextBlockSizeFromEdit(int index);
+	void DrawTextOverlay(CDC& dc) const;
+	void CompositeTextOverlay(HDC hdc, const CRect& selectionClient) const;
+	int MaxTextWrapWidth() const;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);
@@ -94,6 +110,7 @@ protected:
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
+	afx_msg void OnEnChangeInlineText();
 
 	DECLARE_MESSAGE_MAP()
 	virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);

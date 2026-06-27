@@ -102,6 +102,8 @@ void MainWindow::showEvent(QShowEvent* event)
 {
 	QWidget::showEvent(event);
 	registerHotKey();
+	if (GetAppSettings().startMinimizedToTaskbar)
+		showMinimized();
 }
 
 void MainWindow::onScreenshot()

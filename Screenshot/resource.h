@@ -32,6 +32,9 @@
 #define IDC_EDIT_SAVE_DIR               1010
 #define IDC_STATIC_SAVE_DIR             1011
 #define IDC_CHECK_SINGLE_MONITOR        1014
+#define IDB_FOLDER                      146
+
+#define IDC_INLINE_TEXT_EDIT            1015
 
 #define IDD_ANNOT_TEXT                  133
 #define IDC_EDIT_ANNOT_TEXT             1012

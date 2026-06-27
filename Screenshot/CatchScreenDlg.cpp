@@ -14,6 +14,8 @@
 #include "ScreenCapture.h"
 #include "AppSettings.h"
 #include "resource.h"
+#include "StartupUtil.h"
+#include "TextAnnotOverlay.h"
 
 #include <GdiPlus.h>
 using namespace  Gdiplus;
@@ -50,21 +52,8 @@ namespace {
 
 const COLORREF kAnnotColor = RGB(255, 60, 60);
 const int kAnnotPenWidth = 3;
-const int kAnnotTextHeight = 22;
-
-class CAnnotTextDlg : public CDialog
-{
-public:
-	CString m_text;
-	enum { IDD = IDD_ANNOT_TEXT };
-
-protected:
-	virtual void DoDataExchange(CDataExchange* pDX)
-	{
-		CDialog::DoDataExchange(pDX);
-		DDX_Text(pDX, IDC_EDIT_ANNOT_TEXT, m_text);
-	}
-};
+const COLORREF kTextBorderColor = RGB(10, 100, 130);
+const COLORREF kTextFillColor = RGB(255, 255, 255);
 
 } // namespace
 
@@ -148,6 +137,8 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_annotStart = CPoint(0, 0);
 	m_annotLast = CPoint(0, 0);
 	m_previewRect.SetRectEmpty();
+	m_editingTextIndex = -1;
+	m_dragTextIndex = -1;
 }
 
 void CCatchScreenDlg::DoDataExchange(CDataExchange* pDX)
@@ -165,6 +156,7 @@ BEGIN_MESSAGE_MAP(CCatchScreenDlg, CDialog)
 	ON_WM_ERASEBKGND()
 	ON_WM_SETCURSOR()
 	ON_WM_RBUTTONDOWN()
+	ON_EN_CHANGE(IDC_INLINE_TEXT_EDIT, &CCatchScreenDlg::OnEnChangeInlineText)
 END_MESSAGE_MAP()
 
 void CCatchScreenDlg::InvalidateSelectionFrame(const CRect& rect)
@@ -205,6 +197,7 @@ void CCatchScreenDlg::CancelCurrentSelection()
 	m_previewRect.SetRectEmpty();
 	m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
 	ClearAnnotationLayer();
+	ClearTextOverlay();
 	m_toolBar.HideBar();
 
 	if (!old.IsRectEmpty() && old.Width() > 0 && old.Height() > 0)
@@ -273,6 +266,17 @@ BOOL CCatchScreenDlg::OnInitDialog()
 	m_toolBar.Create(this);
 	m_toolBar.HideBar();
 
+	LOGFONT lf = {};
+	lf.lfHeight = -16;
+	lf.lfWeight = FW_NORMAL;
+	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
+	m_textAnnotFont.CreateFontIndirect(&lf);
+	m_inlineTextEdit.Create(
+		WS_CHILD | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN,
+		CRect(0, 0, 120, 32), this, IDC_INLINE_TEXT_EDIT);
+	m_inlineTextEdit.SetFont(&m_textAnnotFont);
+	m_inlineTextEdit.ShowWindow(SW_HIDE);
+
 	((CScreenshotApp *)AfxGetApp())->m_hwndDlg = m_hWnd;
 	return TRUE;
 }
@@ -281,6 +285,11 @@ BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 {
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE)
 	{
+		if (m_editingTextIndex >= 0)
+		{
+			EndTextEdit(TRUE);
+			return TRUE;
+		}
 		if (m_bFirstDraw)
 			CancelCurrentSelection();
 		PostQuitMessage(0);
@@ -337,6 +346,7 @@ void CCatchScreenDlg::OnPaint()
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
 			if (m_bAnnotating && !m_previewRect.IsRectEmpty())
 				DrawPreviewShape(memDC.m_hDC);
+			DrawTextOverlay(memDC);
 		}
 
 		dc.BitBlt(0, 0, client.Width(), client.Height(), &memDC, 0, 0, SRCCOPY);
@@ -359,6 +369,26 @@ void CCatchScreenDlg::OnCancel()
 
 void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
+	if (m_dragTextIndex >= 0 && (nFlags & MK_LBUTTON))
+	{
+		TextAnnotBlock* p = m_textOverlay.At((size_t)m_dragTextIndex);
+		if (p)
+		{
+			const int w = p->rect.Width();
+			const int h = p->rect.Height();
+			p->rect.SetRect(
+				point.x - m_dragTextGrabOffset.x,
+				point.y - m_dragTextGrabOffset.y,
+				point.x - m_dragTextGrabOffset.x + w,
+				point.y - m_dragTextGrabOffset.y + h);
+			if (m_editingTextIndex == m_dragTextIndex)
+				UpdateTextBlockSizeFromEdit(m_editingTextIndex);
+			InvalidateAroundRect(p->rect);
+		}
+		CDialog::OnMouseMove(nFlags, point);
+		return;
+	}
+
 	if (m_bAnnotating && m_bFirstDraw && !m_bDraw)
 	{
 		CPoint local;
@@ -409,23 +439,50 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	m_bLBtnDown = TRUE;
 	const int nHitTest = m_rectTracker.HitTest(point);
 
+	if (m_editingTextIndex >= 0)
+	{
+		TextAnnotBlock* pEdit = m_textOverlay.At((size_t)m_editingTextIndex);
+		if (!pEdit || !pEdit->rect.PtInRect(point))
+		{
+			EndTextEdit(TRUE);
+			m_bLBtnDown = FALSE;
+			CDialog::OnLButtonDown(nFlags, point);
+			return;
+		}
+	}
+
+	const int textHit = m_textOverlay.HitTest(point);
+	if (m_bFirstDraw && !m_bDraw && textHit >= 0 && m_editingTextIndex < 0)
+	{
+		m_dragTextIndex = textHit;
+		TextAnnotBlock* p = m_textOverlay.At((size_t)textHit);
+		if (p)
+		{
+			m_dragTextGrabOffset = point - p->rect.TopLeft();
+			SetCapture();
+		}
+		CDialog::OnLButtonDown(nFlags, point);
+		return;
+	}
+
+	if (m_bFirstDraw && !m_bDraw && m_activeTool == AnnotToolText && IsPointInSelection(point))
+	{
+		SyncAnnotationLayerToSelection();
+		CRect box = m_textOverlay.MakeCenteredBox(m_rectTracker.m_rect, m_textOverlay.Count());
+		m_textOverlay.AddBlock(box, _T("\u6587\u672c"));
+		BeginTextEdit((int)m_textOverlay.Count() - 1);
+		InvalidateAroundRect(box);
+		CDialog::OnLButtonDown(nFlags, point);
+		return;
+	}
+
 	if (m_bFirstDraw && !m_bDraw && m_activeTool != AnnotToolNone && IsPointInSelection(point))
 	{
 		SyncAnnotationLayerToSelection();
 		CPoint local;
 		if (ClientToAnnot(point, local))
 		{
-			if (m_activeTool == AnnotToolText)
-			{
-				m_annotation.PushUndoSnapshot();
-				CString text;
-				if (PromptAnnotText(text) && !text.IsEmpty())
-				{
-					m_annotation.DrawTextAt(local.x, local.y, text, kAnnotTextHeight, kAnnotColor);
-					InvalidateAnnotationView();
-				}
-			}
-			else
+			if (m_activeTool != AnnotToolText)
 			{
 				m_bAnnotating = TRUE;
 				m_annotStart = local;
@@ -465,6 +522,16 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 
 void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	if (m_dragTextIndex >= 0)
+	{
+		if (GetCapture() == this)
+			ReleaseCapture();
+		m_dragTextIndex = -1;
+		m_bLBtnDown = FALSE;
+		CDialog::OnLButtonUp(nFlags, point);
+		return;
+	}
+
 	if (m_bAnnotating)
 	{
 		m_bAnnotating = FALSE;
@@ -517,6 +584,14 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 
 void CCatchScreenDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 {
+	const int textHit = m_textOverlay.HitTest(point);
+	if (textHit >= 0)
+	{
+		BeginTextEdit(textHit);
+		CDialog::OnLButtonDblClk(nFlags, point);
+		return;
+	}
+
 	int nHitTest;
 	nHitTest = m_rectTracker.HitTest(point);
 
@@ -687,13 +762,146 @@ void CCatchScreenDlg::DrawPreviewShape(HDC hdc) const
 
 BOOL CCatchScreenDlg::PromptAnnotText(CString& text)
 {
-	CAnnotTextDlg dlg;
-	dlg.m_text = text;
-	if (dlg.DoModal() != IDOK)
-		return FALSE;
-	text = dlg.m_text;
-	text.Trim();
-	return TRUE;
+	UNREFERENCED_PARAMETER(text);
+	return FALSE;
+}
+
+void CCatchScreenDlg::OpenSaveFolder()
+{
+	if (m_editingTextIndex >= 0)
+		EndTextEdit(TRUE);
+	OpenFolderInExplorer(GetAppSettings().GetEffectiveSaveDirectory());
+}
+
+void CCatchScreenDlg::ClearTextOverlay()
+{
+	if (m_editingTextIndex >= 0)
+	{
+		m_inlineTextEdit.ShowWindow(SW_HIDE);
+		m_editingTextIndex = -1;
+	}
+	m_dragTextIndex = -1;
+	m_textOverlay.Clear();
+}
+
+int CCatchScreenDlg::MaxTextWrapWidth() const
+{
+	CRect sel = m_rectTracker.m_rect;
+	sel.NormalizeRect();
+	if (sel.IsRectEmpty())
+		return 400;
+	return std::max(120, sel.Width() - 16);
+}
+
+void CCatchScreenDlg::EndTextEdit(BOOL commit)
+{
+	if (m_editingTextIndex < 0)
+		return;
+	TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
+	if (p && commit)
+	{
+		m_inlineTextEdit.GetWindowText(p->text);
+		m_textOverlay.MeasureAndResizeBlock(*p, MaxTextWrapWidth(), &m_textAnnotFont);
+	}
+	m_inlineTextEdit.ShowWindow(SW_HIDE);
+	const CRect dirty = p ? p->rect : CRect(0, 0, 0, 0);
+	m_editingTextIndex = -1;
+	if (!dirty.IsRectEmpty())
+		InvalidateAroundRect(dirty);
+}
+
+void CCatchScreenDlg::BeginTextEdit(int index)
+{
+	TextAnnotBlock* p = m_textOverlay.At((size_t)index);
+	if (!p)
+		return;
+	if (m_editingTextIndex >= 0 && m_editingTextIndex != index)
+		EndTextEdit(TRUE);
+
+	m_editingTextIndex = index;
+	m_textOverlay.MeasureAndResizeBlock(*p, MaxTextWrapWidth(), &m_textAnnotFont);
+	m_inlineTextEdit.SetWindowText(p->text);
+	m_inlineTextEdit.MoveWindow(p->rect, FALSE);
+	m_inlineTextEdit.ShowWindow(SW_SHOW);
+	m_inlineTextEdit.SetFocus();
+	m_inlineTextEdit.SetSel(0, -1);
+	InvalidateAroundRect(p->rect);
+}
+
+void CCatchScreenDlg::UpdateTextBlockSizeFromEdit(int index)
+{
+	TextAnnotBlock* p = m_textOverlay.At((size_t)index);
+	if (!p)
+		return;
+	m_inlineTextEdit.GetWindowText(p->text);
+	m_textOverlay.MeasureAndResizeBlock(*p, MaxTextWrapWidth(), &m_textAnnotFont);
+	m_inlineTextEdit.MoveWindow(p->rect, FALSE);
+	InvalidateAroundRect(p->rect);
+}
+
+void CCatchScreenDlg::OnEnChangeInlineText()
+{
+	if (m_editingTextIndex >= 0)
+		UpdateTextBlockSizeFromEdit(m_editingTextIndex);
+}
+
+void CCatchScreenDlg::DrawTextOverlay(CDC& dc) const
+{
+	for (size_t i = 0; i < m_textOverlay.Count(); ++i)
+	{
+		if ((int)i == m_editingTextIndex)
+			continue;
+		const TextAnnotBlock* p = m_textOverlay.At(i);
+		if (!p)
+			continue;
+		CRect r = p->rect;
+		CPen pen(PS_SOLID, 2, kTextBorderColor);
+		CPen* pOldPen = dc.SelectObject(&pen);
+		CBrush* pOldBrush = (CBrush*)dc.SelectStockObject(NULL_BRUSH);
+		dc.Rectangle(r);
+		dc.SelectObject(pOldBrush);
+		dc.SelectObject(pOldPen);
+		if (!p->text.IsEmpty())
+		{
+			CRect textRc = r;
+			textRc.DeflateRect(6, 6);
+			dc.SetBkMode(TRANSPARENT);
+			dc.SetTextColor(kAnnotColor);
+			CFont* pOldFont = dc.SelectObject(&m_textAnnotFont);
+			dc.DrawText(p->text, textRc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX);
+			dc.SelectObject(pOldFont);
+		}
+	}
+}
+
+void CCatchScreenDlg::CompositeTextOverlay(HDC hdc, const CRect& selectionClient) const
+{
+	CRect sel = selectionClient;
+	sel.NormalizeRect();
+	for (size_t i = 0; i < m_textOverlay.Count(); ++i)
+	{
+		const TextAnnotBlock* p = m_textOverlay.At(i);
+		if (!p || p->text.IsEmpty())
+			continue;
+		CRect r = p->rect;
+		r.OffsetRect(-sel.left, -sel.top);
+		CPen pen(PS_SOLID, 2, kTextBorderColor);
+		HPEN hOldPen = (HPEN)SelectObject(hdc, pen.GetSafeHandle());
+		HGDIOBJ hOldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+		Rectangle(hdc, r.left, r.top, r.right, r.bottom);
+		SelectObject(hdc, hOldBrush);
+		SelectObject(hdc, hOldPen);
+		CRect textRc = r;
+		textRc.DeflateRect(6, 6);
+		SetBkMode(hdc, TRANSPARENT);
+		SetTextColor(hdc, kAnnotColor);
+		HGDIOBJ hOldFont = SelectObject(hdc, m_textAnnotFont.GetSafeHandle());
+		DrawTextW(hdc, p->text, p->text.GetLength(), textRc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX);
+		if (hOldFont)
+			SelectObject(hdc, hOldFont);
+	}
+}
+
 }
 
 void CCatchScreenDlg::FinishSelectionIfValid(const CPoint& endPt)
@@ -753,6 +961,8 @@ HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
 	if (m_annotation.IsValid() && m_annotationRect == r)
 		m_annotation.DrawOn(hMemDC, 0, 0);
 
+	CompositeTextOverlay(hMemDC, r);
+
 	SelectObject(hMemDC, hOld);
 	DeleteDC(hMemDC);
 	::ReleaseDC(NULL, hScrDC);
@@ -761,6 +971,8 @@ HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
 
 BOOL CCatchScreenDlg::CopySelectionToClipboard(const CRect& clientRect)
 {
+	if (m_editingTextIndex >= 0)
+		EndTextEdit(TRUE);
 	HBITMAP hBitmap = BuildSelectionBitmap(clientRect);
 	if (!hBitmap)
 		return FALSE;
@@ -778,6 +990,8 @@ BOOL CCatchScreenDlg::CopySelectionToClipboard(const CRect& clientRect)
 
 BOOL CCatchScreenDlg::SaveSelectionToFile(const CRect& clientRect)
 {
+	if (m_editingTextIndex >= 0)
+		EndTextEdit(TRUE);
 	CRect r = clientRect;
 	r.NormalizeRect();
 	if (r.IsRectEmpty())
@@ -786,11 +1000,16 @@ BOOL CCatchScreenDlg::SaveSelectionToFile(const CRect& clientRect)
 		return FALSE;
 	}
 
-	CString dir = GetAppSettings().saveDirectory;
+	CString dir = GetAppSettings().GetEffectiveSaveDirectory();
 	dir.Trim();
 	if (dir.IsEmpty())
 	{
-		AfxMessageBox(L"\u8bf7\u5728\u8bbe\u7f6e\u4e2d\u6307\u5b9a\u4fdd\u5b58\u56fe\u7247\u8def\u5f84\u3002");
+		AfxMessageBox(L"\u65e0\u6cd5\u786e\u5b9a\u4fdd\u5b58\u8def\u5f84\u3002");
+		return FALSE;
+	}
+	if (!EnsureDirectoryExists(dir))
+	{
+		AfxMessageBox(L"\u65e0\u6cd5\u521b\u5efa\u4fdd\u5b58\u76ee\u5f55\u3002");
 		return FALSE;
 	}
 	if (dir[dir.GetLength() - 1] != _T('\\') && dir[dir.GetLength() - 1] != _T('/'))
@@ -924,13 +1143,20 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 			m_activeTool = AnnotToolText;
 			break;
 		case DarkToolBar_CommandBase + 6:
+			if (m_editingTextIndex >= 0)
+				EndTextEdit(TRUE);
 			SaveSelectionToFile(m_rectTracker.m_rect);
 			break;
 		case DarkToolBar_CommandBase + 7:
+			OpenSaveFolder();
+			break;
+		case DarkToolBar_CommandBase + 8:
 			CancelCurrentSelection();
 			InvalidateRect(NULL, FALSE);
 			break;
-		case DarkToolBar_CommandBase + 8:
+		case DarkToolBar_CommandBase + 9:
+			if (m_editingTextIndex >= 0)
+				EndTextEdit(TRUE);
 			if (CopySelectionToClipboard(m_rectTracker.m_rect))
 				PostQuitMessage(0);
 			break;

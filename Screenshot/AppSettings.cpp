@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "AppSettings.h"
+#include "StartupUtil.h"
 
 static AppSettings g_settings;
 
@@ -21,6 +22,8 @@ void AppSettings::SetDefaults()
 	hotkeyVk = (UINT)'A';
 	copyAndExitAfterSelect = FALSE;
 	singleMonitorCapture = FALSE;
+	launchAtStartup = FALSE;
+	startMinimizedToTaskbar = FALSE;
 	saveDirectory.Empty();
 }
 
@@ -32,6 +35,15 @@ void AppSettings::Clamp()
 	if (windowHeight > 600) windowHeight = 600;
 	if (hotkeyVk == 0)
 		hotkeyVk = (UINT)'A';
+}
+
+CString AppSettings::GetEffectiveSaveDirectory() const
+{
+	CString dir = saveDirectory;
+	dir.Trim();
+	if (!dir.IsEmpty())
+		return dir;
+	return GetDefaultSaveDirectory();
 }
 
 CString AppSettings::GetSettingsFilePath() const
@@ -159,8 +171,11 @@ BOOL AppSettings::Load()
 	hotkeyVk = (UINT)ParseJsonInt(json, _T("hotkeyVk"), (int)hotkeyVk);
 	copyAndExitAfterSelect = ParseJsonBool(json, _T("copyAndExitAfterSelect"), copyAndExitAfterSelect);
 	singleMonitorCapture = ParseJsonBool(json, _T("singleMonitorCapture"), singleMonitorCapture);
+	launchAtStartup = ParseJsonBool(json, _T("launchAtStartup"), launchAtStartup);
+	startMinimizedToTaskbar = ParseJsonBool(json, _T("startMinimizedToTaskbar"), startMinimizedToTaskbar);
 	saveDirectory = ParseJsonString(json, _T("saveDirectory"), saveDirectory);
 	Clamp();
+	ApplyLaunchAtStartupSetting(launchAtStartup);
 	return TRUE;
 }
 
@@ -178,11 +193,15 @@ BOOL AppSettings::Save() const
 		_T("  \"hotkeyVk\": %u,\r\n")
 		_T("  \"copyAndExitAfterSelect\": %s,\r\n")
 		_T("  \"singleMonitorCapture\": %s,\r\n")
+		_T("  \"launchAtStartup\": %s,\r\n")
+		_T("  \"startMinimizedToTaskbar\": %s,\r\n")
 		_T("  \"saveDirectory\": \"%s\"\r\n")
 		_T("}\r\n"),
 		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk,
 		temp.copyAndExitAfterSelect ? _T("true") : _T("false"),
 		temp.singleMonitorCapture ? _T("true") : _T("false"),
+		temp.launchAtStartup ? _T("true") : _T("false"),
+		temp.startMinimizedToTaskbar ? _T("true") : _T("false"),
 		(LPCTSTR)JsonEscape(temp.saveDirectory));
 
 	try
@@ -195,5 +214,6 @@ BOOL AppSettings::Save() const
 	{
 		return FALSE;
 	}
+	ApplyLaunchAtStartupSetting(launchAtStartup);
 	return TRUE;
 }

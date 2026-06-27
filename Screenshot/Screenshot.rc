@@ -211,6 +211,7 @@ IDB_UNDO                PNG                     "res\\Undo.png"
 IDB_SAVE                PNG                     "res\\Save.png"
 IDB_EXIT                PNG                     "res\\Exit.png"
 IDB_FINISH              PNG                     "res\\Finish.png"
+IDB_FOLDER              PNG                     "res\\folder.png"
 
 /////////////////////////////////////////////////////////////////////////////
 //

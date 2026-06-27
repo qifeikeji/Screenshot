@@ -8,6 +8,8 @@ struct AppSettings
 	UINT hotkeyVk;
 	BOOL copyAndExitAfterSelect;
 	BOOL singleMonitorCapture;
+	BOOL launchAtStartup;
+	BOOL startMinimizedToTaskbar;
 	CString saveDirectory;
 
 	AppSettings();
@@ -15,6 +17,7 @@ struct AppSettings
 	void SetDefaults();
 	void Clamp();
 	CString GetSettingsFilePath() const;
+	CString GetEffectiveSaveDirectory() const;
 	BOOL Load();
 	BOOL Save() const;
 };

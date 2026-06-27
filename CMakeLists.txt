@@ -25,6 +25,8 @@ set(SCREENSHOT_SOURCES
   ${SCREENSHOT_DIR}/MyEdit.cpp
   ${SCREENSHOT_DIR}/MyTracker.cpp
   ${SCREENSHOT_DIR}/ScreenCapture.cpp
+  ${SCREENSHOT_DIR}/StartupUtil.cpp
+  ${SCREENSHOT_DIR}/TextAnnotOverlay.cpp
   ${SCREENSHOT_DIR}/stdafx.cpp
   ${SCREENSHOT_DIR}/qt/MainWindow.cpp
   ${SCREENSHOT_DIR}/qt/SettingsDialog.cpp
@@ -54,6 +56,8 @@ target_link_libraries(Screenshot PRIVATE
   Gdiplus
   Msimg32
   Shcore
+  Shell32
+  Ole32
 )
 
 if(MSVC)

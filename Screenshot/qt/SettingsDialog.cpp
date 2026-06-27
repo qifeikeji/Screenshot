@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "AppSettings.h"
+#include "StartupUtil.h"
 
 #include "SettingsDialog.h"
 
@@ -88,7 +89,9 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 	auto* pathRow = new QHBoxLayout();
 	m_saveDirEdit = new QLineEdit(this);
 	m_saveDirEdit->setText(CStringToQString(s.saveDirectory));
-	m_saveDirEdit->setPlaceholderText(QStringLiteral("\u7559\u7a7a\u5219\u4ec5\u590d\u5236\u5230\u526a\u8d34\u677f"));
+	const QString defaultDir = CStringToQString(GetDefaultSaveDirectory());
+	m_saveDirEdit->setPlaceholderText(
+		QStringLiteral("\u7559\u7a7a\u5219\u4f7f\u7528\u9ed8\u8ba4\uff1a %1").arg(defaultDir));
 	auto* browseBtn = new QPushButton(QStringLiteral("\u6d4f\u89c8..."), this);
 	pathRow->addWidget(m_saveDirEdit, 1);
 	pathRow->addWidget(browseBtn);
@@ -103,6 +106,14 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 		QStringLiteral("\u5355\u663e\u793a\u5668\u622a\u56fe\uff08\u5feb\u6377\u952e\u65f6\u53ea\u622a\u9f20\u6807\u6240\u5728\u663e\u793a\u5668\uff09"), this);
 	m_checkSingleMonitor->setChecked(s.singleMonitorCapture != FALSE);
 	layout->addWidget(m_checkSingleMonitor);
+
+	m_checkLaunchAtStartup = new QCheckBox(QStringLiteral("\u5f00\u673a\u81ea\u52a8\u542f\u52a8"), this);
+	m_checkLaunchAtStartup->setChecked(s.launchAtStartup != FALSE);
+	layout->addWidget(m_checkLaunchAtStartup);
+
+	m_checkStartMinimized = new QCheckBox(QStringLiteral("\u542f\u52a8\u65f6\u6700\u5c0f\u5316\u5230\u4efb\u52a1\u680f"), this);
+	m_checkStartMinimized->setChecked(s.startMinimizedToTaskbar != FALSE);
+	layout->addWidget(m_checkStartMinimized);
 
 	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 	layout->addWidget(buttons);
@@ -142,8 +153,11 @@ void SettingsDialog::onAccept()
 	cfg.hotkeyVk = vk;
 	cfg.copyAndExitAfterSelect = m_checkCopyExit->isChecked() ? TRUE : FALSE;
 	cfg.singleMonitorCapture = m_checkSingleMonitor->isChecked() ? TRUE : FALSE;
+	cfg.launchAtStartup = m_checkLaunchAtStartup->isChecked() ? TRUE : FALSE;
+	cfg.startMinimizedToTaskbar = m_checkStartMinimized->isChecked() ? TRUE : FALSE;
 	cfg.saveDirectory = QStringToCString(m_saveDirEdit->text().trimmed());
 	cfg.Clamp();
 	cfg.Save();
+	ApplyLaunchAtStartupSetting(cfg.launchAtStartup);
 	accept();
 }
