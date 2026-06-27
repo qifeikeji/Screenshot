@@ -11,7 +11,6 @@ CSettingsDlg::CSettingsDlg(CWnd* pParent)
 void CSettingsDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
-	DDX_Control(pDX, IDC_HOTKEY_SCREENSHOT, m_hotKey);
 }
 
 BEGIN_MESSAGE_MAP(CSettingsDlg, CDialog)
@@ -27,6 +26,12 @@ BOOL CSettingsDlg::OnInitDialog()
 	CDialog::OnInitDialog();
 	SetWindowText(L"\u8bbe\u7f6e");
 	SetDlgItemText(IDC_STATIC_HOTKEY_LABEL, L"\u622a\u56fe\u5feb\u6377\u952e");
+
+	if (!m_hotKey.SubclassDlgItem(IDC_HOTKEY_SCREENSHOT, this))
+	{
+		AfxMessageBox(L"\u65e0\u6cd5\u521b\u5efa\u5feb\u6377\u952e\u63a7\u4ef6\u3002");
+		return TRUE;
+	}
 
 	WORD hk = 0;
 	HotKeyToHotKeyCtrl(s.hotkeyModifiers, s.hotkeyVk, hk);

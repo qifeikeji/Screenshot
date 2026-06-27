@@ -199,6 +199,7 @@ void CScreenshotDlg::OnBnClickedBtnStart()
 void CScreenshotDlg::OnBnClickedBtnSettings()
 {
 	CSettingsDlg dlg(this);
-	if (dlg.DoModal() == IDOK)
+	const INT_PTR ret = dlg.DoModal();
+	if (ret == IDOK)
 		RegisterScreenshotHotKey();
 }

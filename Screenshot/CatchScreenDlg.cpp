@@ -161,6 +161,7 @@ void CCatchScreenDlg::BeginSelectionAt(CPoint point)
 	m_bFirstDraw = TRUE;
 	m_bToolBarShown = FALSE;
 	m_rectTracker.m_rect.SetRect(point.x, point.y, point.x, point.y);
+	SetCapture();
 	InvalidateRect(NULL, FALSE);
 }
 
@@ -269,7 +270,7 @@ void CCatchScreenDlg::OnPaint()
 			memDC.BitBlt(0, 0, min(client.Width(), copyW), min(client.Height(), copyH),
 				&srcDC, 0, 0, SRCCOPY);
 
-		if (m_bFirstDraw)
+		if (m_bFirstDraw || m_bDraw)
 		{
 			m_rectTracker.Draw(&memDC);
 			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
@@ -305,9 +306,14 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 	{
 		CRect prev = m_rectTracker.m_rect;
 		m_rectTracker.m_rect.SetRect(m_startPt.x, m_startPt.y, point.x, point.y);
-		CRect dirty = prev;
-		dirty.UnionRect(&dirty, &m_rectTracker.m_rect);
-		InvalidateAroundRect(dirty);
+		CRect cur = m_rectTracker.m_rect;
+		cur.NormalizeRect();
+		CRect prevNorm = prev;
+		prevNorm.NormalizeRect();
+		CRect dirty = prevNorm;
+		dirty.UnionRect(&dirty, &cur);
+		dirty.InflateRect(2, 2);
+		InvalidateRect(&dirty, FALSE);
 	}
 
 	CDialog::OnMouseMove(nFlags, point);
@@ -346,6 +352,8 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	const BOOL wasDrawing = m_bDraw;
 	m_bLBtnDown = FALSE;
 	m_bDraw = FALSE;
+	if (GetCapture() == this)
+		ReleaseCapture();
 	if (wasDrawing && m_bFirstDraw)
 	{
 		const int dx = abs(point.x - m_startPt.x);

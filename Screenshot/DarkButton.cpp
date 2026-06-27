@@ -21,7 +21,7 @@ void CDarkButton::SetAccent(bool accent)
 void CDarkButton::PreSubclassWindow()
 {
 	CButton::PreSubclassWindow();
-	ModifyStyle(0, BS_OWNERDRAW);
+	ModifyStyle(0, BS_OWNERDRAW | BS_NOTIFY);
 }
 
 BEGIN_MESSAGE_MAP(CDarkButton, CButton)
