@@ -11,6 +11,8 @@
 #include "stdafx.h"
 #include "Screenshot.h"
 #include "CatchScreenDlg.h"
+#include "AppSettings.h"
+#include "ScreenCapture.h"
 
 #include <GdiPlus.h>
 using namespace  Gdiplus;
@@ -66,21 +68,25 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_bDraw = FALSE;
 	m_bFirstDraw = FALSE;
 	m_bQuit = FALSE;
-	m_bNeedShowMsg = FALSE;
 	m_startPt = 0;
+	m_rectPrevDrag.SetRectEmpty();
 
-	m_nOriginX = GetSystemMetrics(SM_XVIRTUALSCREEN);
-	m_nOriginY = GetSystemMetrics(SM_YVIRTUALSCREEN);
-	m_nScreenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-	m_nScreenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+	VirtualScreenInfo vsi = {};
+	QueryVirtualScreen(&vsi);
+	m_nOriginX = vsi.originX;
+	m_nOriginY = vsi.originY;
+	m_nScreenWidth = vsi.width;
+	m_nScreenHeight = vsi.height;
 
-	CRect rect(0, 0, m_nScreenWidth, m_nScreenHeight);
-	m_hBitmap = CopyScreenToBitmap(&rect);
+	m_hBitmap = CaptureVirtualDesktop(vsi);
+	if (!m_hBitmap)
+	{
+		CRect rect(0, 0, m_nScreenWidth, m_nScreenHeight);
+		m_hBitmap = CopyScreenToBitmap(&rect);
+	}
 	m_pBitmap = CBitmap::FromHandle(m_hBitmap);
 
 	m_annotationRect.SetRectEmpty();
-	//??????????????? m_rgn
-	m_rgn.CreateRectRgn(0, 0, 50, 50);
 }
 
 void CCatchScreenDlg::DoDataExchange(CDataExchange* pDX)
@@ -97,10 +103,58 @@ BEGIN_MESSAGE_MAP(CCatchScreenDlg, CDialog)
 	ON_WM_LBUTTONDBLCLK()
 	ON_WM_ERASEBKGND()
 	ON_WM_SETCURSOR()
-	ON_WM_RBUTTONUP()
-	ON_WM_CTLCOLOR()
 	ON_WM_RBUTTONDOWN()
 END_MESSAGE_MAP()
+
+namespace {
+
+void FillDimRect(Gdiplus::Graphics& g, const CRect& rc, BYTE gray, BYTE alpha)
+{
+	if (rc.IsRectEmpty())
+		return;
+	Gdiplus::SolidBrush brush(Gdiplus::Color(alpha, gray, gray, gray));
+	g.FillRectangle(&brush, (Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.top,
+		(Gdiplus::REAL)rc.Width(), (Gdiplus::REAL)rc.Height());
+}
+
+void DrawDimOverlay(Gdiplus::Graphics& g, const CRect& client, const CRect& selection)
+{
+	const AppSettings& cfg = GetAppSettings();
+	const BYTE gray = (BYTE)cfg.maskGray;
+	const BYTE alpha = (BYTE)((cfg.maskOpacity * 255) / 100);
+	CRect sel = selection;
+	sel.NormalizeRect();
+	if (sel.IsRectEmpty())
+	{
+		FillDimRect(g, client, gray, alpha);
+		return;
+	}
+	CRect top(client.left, client.top, client.right, sel.top);
+	CRect bottom(client.left, sel.bottom, client.right, client.bottom);
+	CRect left(client.left, sel.top, sel.left, sel.bottom);
+	CRect right(sel.right, sel.top, client.right, sel.bottom);
+	FillDimRect(g, top, gray, alpha);
+	FillDimRect(g, bottom, gray, alpha);
+	FillDimRect(g, left, gray, alpha);
+	FillDimRect(g, right, gray, alpha);
+}
+
+} // namespace
+
+void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
+{
+	CRect inv = area;
+	inv.NormalizeRect();
+	inv.InflateRect(8, 8);
+	if (m_toolBar.GetHWND())
+	{
+		CRect tb;
+		m_toolBar.GetWindowRect(&tb);
+		ScreenToClient(&tb);
+		inv.UnionRect(&inv, &tb);
+	}
+	InvalidateRect(&inv, FALSE);
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // CCatchScreenDlg message handlers
@@ -111,21 +165,12 @@ BOOL CCatchScreenDlg::OnInitDialog()
 	//?????????????????????
 	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, m_nScreenWidth, m_nScreenHeight, SWP_SHOWWINDOW);
 
-	//??????????????
-	CRect rect;
-	m_tipEdit.GetWindowRect(&rect);
-	m_tipEdit.MoveWindow(10, 10, rect.Width(), rect.Height());
+	m_tipEdit.ShowWindow(SW_HIDE);
 
+	m_toolBar.Create(this);
+	m_toolBar.SetShowPlace(300, 300);
 
-	m_toolBar.CreateToolBar(m_hWnd);
-	m_toolBar.RemoveChildStyle();
-	::MoveWindow(m_toolBar.GetHWND(),300,300,230,30,FALSE);
-
-
-	UpdateTipString();
-	SetEidtWndText();
-
-	((CScreenshotApp *)AfxGetApp())->m_hwndDlg = AfxGetMainWnd()->GetSafeHwnd();
+	((CScreenshotApp *)AfxGetApp())->m_hwndDlg = m_hWnd;
 	return TRUE;
 }
  
@@ -146,62 +191,34 @@ void CCatchScreenDlg::OnPaint()
 		int y = (rect.Height() - cyIcon + 1) / 2;
 
 	}
-	else  // ??????????????
+	else
 	{
 		CPaintDC dc(this);
+		CRect client;
+		GetClientRect(&client);
 
-		CDC dcCompatible;
+		CDC memDC;
+		memDC.CreateCompatibleDC(&dc);
+		CBitmap frame;
+		frame.CreateCompatibleBitmap(&dc, client.Width(), client.Height());
+		CBitmap* pOld = memDC.SelectObject(&frame);
 
-		dcCompatible.CreateCompatibleDC(&dc);
-		RECT rect;
-		::GetClientRect(m_hWnd, &rect);
-		HBITMAP hBitmap = ::CreateCompatibleBitmap(dc.m_hDC,rect.right-rect.left,rect.bottom-rect.top);
-		::SelectObject(dcCompatible.m_hDC,hBitmap);
+		CDC srcDC;
+		srcDC.CreateCompatibleDC(&dc);
+		srcDC.SelectObject(m_pBitmap);
+		memDC.BitBlt(0, 0, client.Width(), client.Height(), &srcDC, 0, 0, SRCCOPY);
 
-		HBRUSH s_hBitmapBrush = CreatePatternBrush(m_hBitmap); 
-		::FillRect(dcCompatible.m_hDC,&rect,s_hBitmapBrush);
-
-		//?????????????????
-		if (m_bNeedShowMsg && m_bFirstDraw)
-		{
-			CRect rect = m_rectTracker.m_rect;
-			DrawMessage(rect, &dcCompatible);
-		}
-
-		//????????????
+		Gdiplus::Graphics graphics(memDC.m_hDC);
 		if (m_bFirstDraw)
 		{
-			m_rectTracker.Draw(&dcCompatible);
+			DrawDimOverlay(graphics, client, m_rectTracker.m_rect);
+			m_rectTracker.Draw(&memDC);
+			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
+				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
 		}
 
-		if (m_bFirstDraw && m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
-		{
-			m_annotation.DrawOn(dcCompatible.m_hDC, m_annotationRect.left, m_annotationRect.top);
-		}
-
-		Gdiplus::Graphics graphics(dcCompatible);
-
-		HRGN hgn1 = CreateRectRgn(m_rectTracker.m_rect.left,m_rectTracker.m_rect.top,
-			m_rectTracker.m_rect.right,m_rectTracker.m_rect.bottom);
-		Region region1(hgn1);
-
-		HRGN hgn2 = CreateRectRgn(rect.left,rect.top,
-			rect.right,rect.bottom);
-		Region region2(hgn2);
-
-		region2.Exclude(&region1);
-
-		SolidBrush  solidBrush(Color(100, 128, 128, 128));
-		graphics.FillRegion(&solidBrush,&region2);
-
-		DeleteObject(hgn1);
-		DeleteObject(hgn2);
-
-		dc.BitBlt(0,0,rect.right, rect.bottom,&dcCompatible,0,0,SRCCOPY);
-		DeleteObject(hBitmap);
-		DeleteObject(s_hBitmapBrush);
-
-		//CDialog::OnPaint();
+		dc.BitBlt(0, 0, client.Width(), client.Height(), &memDC, 0, 0, SRCCOPY);
+		memDC.SelectObject(pOld);
 	}
 }
 
@@ -214,7 +231,7 @@ void CCatchScreenDlg::OnCancel()
 		m_bDraw = FALSE;
 		m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
 		ClearAnnotationLayer();
-		InvalidateRgnWindow();
+		InvalidateRect(NULL, FALSE);
 	}
 	else
 	{
@@ -225,24 +242,17 @@ void CCatchScreenDlg::OnCancel()
 void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
 	if(m_bLBtnDown)
-		m_toolBar.HideToolBar();
-	else
-		m_toolBar.ShowToolBar();
+		m_toolBar.HideBar();
+	else if (m_bFirstDraw)
+		m_toolBar.ShowBar();
 	if (m_bDraw)
 	{
-		//???????????????,????????
+		CRect prev = m_rectTracker.m_rect;
 		m_rectTracker.m_rect.SetRect(m_startPt.x + 4, m_startPt.y + 4, point.x, point.y);
-		InvalidateRgnWindow();
+		CRect dirty = prev;
+		dirty.UnionRect(&dirty, &m_rectTracker.m_rect);
+		InvalidateAroundRect(dirty);
 	}
-	
-	//??????????????????,???????MouseMove???
-	CRect rect;
-	m_tipEdit.GetWindowRect(&rect);
-	if (rect.PtInRect(point))
-		m_tipEdit.SendMessage(WM_MOUSEMOVE);
-
-	UpdateMousePointRGBString();
-	SetEidtWndText();
 
 	CDialog::OnMouseMove(nFlags, point);
 }
@@ -263,25 +273,16 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 			m_bFirstDraw = TRUE;
 			//????????????????????????
 			m_rectTracker.m_rect.SetRect(point.x, point.y, point.x + 4, point.y + 4);
-
-			//?????????????????????
-			if (m_bFirstDraw)
-				m_bNeedShowMsg = TRUE;
-			UpdateTipString();
-			SetEidtWndText();
-			InvalidateRgnWindow();
+			InvalidateAroundRect(m_rectTracker.m_rect);
 		}
 	}
 	else
 	{
-		//?????????????????????
-		m_bNeedShowMsg = TRUE;
 		if (m_bFirstDraw)
 		{
-			//?????????,Track?????????????????,???????,?????CRectTracker???????
 			m_rectTracker.Track(this, point, TRUE);
 			SyncAnnotationLayerToSelection();
-			InvalidateRgnWindow();
+			InvalidateAroundRect(m_rectTracker.m_rect);
 		}
 	}
 
@@ -291,14 +292,10 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	m_bLBtnDown = FALSE;
-	m_bNeedShowMsg = FALSE;
 	m_bDraw = FALSE;
-	UpdateTipString();
-	SetEidtWndText();
-	m_toolBar.SetShowPlace(m_rectTracker.m_rect.right,m_rectTracker.m_rect.bottom);
+	m_toolBar.SetShowPlace(m_rectTracker.m_rect.right, m_rectTracker.m_rect.bottom);
 	SyncAnnotationLayerToSelection();
-
-	InvalidateRgnWindow();
+	InvalidateAroundRect(m_rectTracker.m_rect);
 	CDialog::OnLButtonUp(nFlags, point);
 }
 
@@ -320,7 +317,7 @@ void CCatchScreenDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 
 void CCatchScreenDlg::OnRButtonDown(UINT nFlags, CPoint point)
 {
-	m_toolBar.HideToolBar();
+	m_toolBar.HideBar();
 	//InvalidateRgnWindow();
 	CDialog::OnRButtonDown(nFlags, point);
 }
@@ -335,9 +332,7 @@ void CCatchScreenDlg::OnRButtonUp(UINT nFlags, CPoint point)
 		//???????????
 		m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
 		ClearAnnotationLayer();
-		UpdateTipString();
-		SetEidtWndText();
-		InvalidateRgnWindow();
+		InvalidateRect(NULL, FALSE);
 	}
 	else
 	{
@@ -346,19 +341,6 @@ void CCatchScreenDlg::OnRButtonUp(UINT nFlags, CPoint point)
 	}
 
 	CDialog::OnRButtonUp(nFlags, point);
-}
-
-HBRUSH CCatchScreenDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
-{
-	HBRUSH hbr = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
-
-	//?????????????????????
-	if (pWnd->GetDlgCtrlID() == IDC_EDIT1)
-	{
-		pDC->SetTextColor(RGB(247,76,128));
-	}
-
-	return hbr;
 }
 
 BOOL CCatchScreenDlg::OnEraseBkgnd(CDC* pDC)
@@ -587,197 +569,6 @@ HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 	return hBitmap;
 }
 
-// ?????????????
-void CCatchScreenDlg::UpdateTipString()
-{
-	CString strTemp;
-	if (!m_bDraw && !m_bFirstDraw)
-	{
-		strTemp = _T("\r\n\r\n?????????????????????\r\n\r\n??ESC?????????????");
-	}
-	else 
-		if (m_bDraw && m_bFirstDraw)
-	{
-		strTemp = _T("\r\n\r\n?????????????????????\r\n\r\n??ESC?????");
-	}
-	else if (!m_bDraw && m_bFirstDraw)
-	{
-		CString sudami(_T("\r\n\r\n?????????????????????\r\n\r\n??????????????????"));
-		strTemp = _T("\r\n\r\n?????????????????????");
-
-		strTemp += sudami;
-	}
-	m_strEditTip = strTemp;
-}
-
-// ?????????????
-void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
-{
-	//?????????????????????
-	const int space = 3;
-
-	//???????????????
-	CPoint pt;
-	CPen pen(PS_SOLID, 1, RGB(47, 79, 79));
-	CPen *pOldPen;
-	pOldPen = pDC->SelectObject(&pen);
-
-	//pDC->SetTextColor(RGB(147,147,147));
-	CFont font;
-	CFont * pOldFont;
-	font.CreatePointFont(90, _T("????"));
-	pOldFont = pDC->SelectObject(&font);
-
-	//?????????????
-	GetCursorPos(&pt);
-	ScreenToClient(&pt);
-	int OldBkMode;
-	OldBkMode = pDC->SetBkMode(TRANSPARENT);
-
-	TEXTMETRIC tm;
-	int charHeight;
-	CSize size;
-	int	lineLength;
-	pDC->GetTextMetrics(&tm);
-	charHeight = tm.tmHeight + tm.tmExternalLeading;
-	size = pDC->GetTextExtent(_T("????????  "), _tcslen(_T("????????  ")));
-	lineLength = size.cx;
-
-	//?????????, ????????????????
-	CRect rect(pt.x + space, pt.y - charHeight * 6 - space, pt.x + lineLength + space, pt.y - space);
-
-	//???????????
-	CRect rectTemp;
-	//?????????????????????????????
-	if ((pt.x + rect.Width()) >= m_nScreenWidth)
-	{
-		//?????????????????
-		rectTemp = rect;
-		rectTemp.left = rect.left - rect.Width() - space * 2;
-		rectTemp.right = rect.right - rect.Width() - space * 2;;
-		rect = rectTemp;
-	}
-
-	if ((pt.y - rect.Height()) <= 0)
-	{
-		//?????????????????
-		rectTemp = rect;
-		rectTemp.top = rect.top + rect.Height() + space * 2;;
-		rectTemp.bottom = rect.bottom + rect.Height() + space * 2;;
-		rect = rectTemp;
-	}
-
-	//??????????????
-	CBrush * pOldBrush;
-	pOldBrush = pDC->SelectObject(CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH)));
-
-	pDC->Rectangle(rect);
-	rect.top += 2;
-	//??????????????
-	CRect outRect(rect.left, rect.top, rect.left + lineLength, rect.top + charHeight);
-	CString string(_T("????????"));
-	pDC->DrawText(string, outRect, DT_CENTER);
-
-	outRect.SetRect(rect.left, rect.top + charHeight, rect.left + lineLength, charHeight + rect.top + charHeight);
-	string.Format(_T("(%d,%d)"), inRect.left, inRect.top);
-	pDC->DrawText(string, outRect, DT_CENTER);
-
-
-	outRect.SetRect(rect.left, rect.top + charHeight * 2, rect.left + lineLength, charHeight + rect.top + charHeight * 2);
-	string = _T("????????");
-	pDC->DrawText(string, outRect, DT_CENTER);
-
-	outRect.SetRect(rect.left, rect.top + charHeight * 3, rect.left + lineLength, charHeight + rect.top + charHeight * 3);
-	string.Format(_T("(%d,%d)"), inRect.Width(), inRect.Height());
-	pDC->DrawText(string, outRect, DT_CENTER);
-
-	outRect.SetRect(rect.left, rect.top + charHeight * 4, rect.left + lineLength, charHeight + rect.top + charHeight * 4);
-	string = _T("???????");
-	pDC->DrawText(string, outRect, DT_CENTER);
-
-	outRect.SetRect(rect.left, rect.top + charHeight * 5, rect.left + lineLength, charHeight + rect.top + charHeight * 5);
-	string.Format(_T("(%d,%d)"), pt.x, pt.y);
-	pDC->DrawText(string, outRect, DT_CENTER);
-
-	pDC->SetBkMode(OldBkMode);
-	pDC->SelectObject(pOldFont);
-	pDC->SelectObject(pOldBrush);
-	pDC->SelectObject(pOldPen);
-}
-
-// ?????????
-void CCatchScreenDlg::InvalidateRgnWindow()
-{
-	//?????????????????
-	CRect rect1;
-	GetWindowRect(rect1);
-
-	//???????????
-	CRect rect2;
-	m_tipEdit.GetWindowRect(rect2);
-
-	CRgn rgn1, rgn2;
-	rgn1.CreateRectRgnIndirect(rect1);
-	rgn2.CreateRectRgnIndirect(rect2);
-
-	//???????????,????????????????
-	//m_rgn.CombineRgn(&rgn1, &rgn2, RGN_DIFF);
-
-	// ????ToolBar?????
-	CRect rect3;
-	::GetWindowRect(m_toolBar.GetHWND(),&rect3);
-	CRgn rgn3;
-	rgn3.CreateRectRgnIndirect(rect3);
-
-	CRgn rgnTemp;
-	rgnTemp.CreateRectRgn(0, 0, 50, 50);
-	rgnTemp.CombineRgn(&rgn1, &rgn2, RGN_DIFF);
-	m_rgn.CombineRgn(&rgnTemp, &rgn3, RGN_DIFF);
-
-	InvalidateRgn(&m_rgn);
-}
-
-void CCatchScreenDlg::UpdateMousePointRGBString()
-{
-	static CString strOld("");
-
-	CPoint pt;
-	GetCursorPos(&pt);
-	ScreenToClient(&pt);
-
-	COLORREF color;
-	CClientDC dc(this);
-	color = dc.GetPixel(pt);
-	BYTE rValue, gValue, bValue;
-	rValue = GetRValue(color);
-	gValue = GetGValue(color);
-	bValue = GetBValue(color);
-
-	//?????????????
-	CString string;
-	string.Format(_T("\r\n\r\n?????????RGB(%d,%d,%d)"), rValue, gValue, bValue);
-
-	//?????????????????RGB?,???????????????
-	if (strOld != string)
-	{
-		m_strRgb = string;
-	}
-	strOld = string;
-}
-
-void  CCatchScreenDlg::SetEidtWndText()
-{
-	m_tipEdit.SetWindowText(this->GetEditText());
-}
-
-CString CCatchScreenDlg::GetEditText()
-{
-	CString str;
-	str.Append(m_strRgb);
-	str.Append(m_strEditTip);
-	return str;
-}
-
 BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 {
 	bool bHandle = true;
@@ -787,31 +578,31 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		int wmId  = LOWORD(wParam);
 		switch(wmId)
 		{
-		case MyToolBar_ID:
+		case DarkToolBar_CommandBase:
 			AfxMessageBox(_T("????"));
 			break;
-		case MyToolBar_ID+1:
+		case DarkToolBar_CommandBase+1:
 			AfxMessageBox(_T("???"));
 			break;
-		case MyToolBar_ID +2:
+		case DarkToolBar_CommandBase +2:
 			AfxMessageBox(_T("????"));
 			break;
-		case MyToolBar_ID +3:
+		case DarkToolBar_CommandBase +3:
 			AfxMessageBox(_T("??????"));
 			break;
-		case MyToolBar_ID +4:
+		case DarkToolBar_CommandBase +4:
 			AfxMessageBox(_T("????"));
 			break;
-		case MyToolBar_ID +5:
+		case DarkToolBar_CommandBase +5:
 			AfxMessageBox(_T("????"));
 			break;
-		case MyToolBar_ID +6:
+		case DarkToolBar_CommandBase +6:
 			SaveSelectionToFile(m_rectTracker.m_rect);
 			break;
-		case MyToolBar_ID +7:
+		case DarkToolBar_CommandBase +7:
 			PostQuitMessage(0);
 			break;
-		case MyToolBar_ID +8:
+		case DarkToolBar_CommandBase +8:
 			if (CopySelectionToClipboard(m_rectTracker.m_rect))
 				PostQuitMessage(0);
 			break;

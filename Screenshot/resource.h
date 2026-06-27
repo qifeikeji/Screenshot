@@ -19,7 +19,13 @@
 #define IDB_PNG2                        145
 #define IDB_FINISH                      145
 #define IDC_BTN_START                   1000
+#define IDC_BTN_SETTINGS                1002
 #define IDC_EDIT1                       1001
+#define IDD_SETTINGS_DIALOG             130
+#define IDC_EDIT_WIN_W                  1003
+#define IDC_EDIT_WIN_H                  1004
+#define IDC_EDIT_MASK_GRAY              1005
+#define IDC_EDIT_MASK_OPACITY           1006
 
 // Next default values for new objects
 // 

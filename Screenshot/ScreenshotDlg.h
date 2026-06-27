@@ -1,31 +1,32 @@
-// ScreenshotDlg.h : 头文件
-//
-
 #pragma once
 
-// CScreenshotDlg 对话框
+#include "Resource.h"
+#include "DarkButton.h"
+
 class CScreenshotDlg : public CDialog
 {
-// 构造
 public:
-	CScreenshotDlg(CWnd* pParent = NULL);	// 标准构造函数
+	CScreenshotDlg(CWnd* pParent = NULL);
 
-// 对话框数据
 	enum { IDD = IDD_SCREENSHOT_DIALOG };
 
-	protected:
-	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
-
-
-// 实现
 protected:
-	HICON m_hIcon;
-
-	// 生成的消息映射函数
+	virtual void DoDataExchange(CDataExchange* pDX);
 	virtual BOOL OnInitDialog();
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	DECLARE_MESSAGE_MAP()
+
 public:
 	afx_msg void OnBnClickedBtnStart();
+	afx_msg void OnBnClickedBtnSettings();
+
+private:
+	HICON m_hIcon;
+	CBrush m_brBackground;
+	CDarkButton m_btnStart;
+	CDarkButton m_btnSettings;
+	void ApplyWindowSizeFromSettings();
 };

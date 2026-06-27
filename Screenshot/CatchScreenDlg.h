@@ -5,73 +5,51 @@
 #pragma once
 #endif 
 
-//--------------------------------------------------------------------------
 #include "Resource.h"
 #include "MyEdit.h"
-
 #ifndef MYTRACKER_
 #include "MyTracker.h"
 #endif
-
-#include "MyToolBar.h"
+#include "DarkToolBar.h"
 #include "AnnotationLayer.h"
-//--------------------------------------------------------------------------
 
-/////////////////////////////////////////////////////////////////////////////
-// 
 class CCatchScreenDlg : public CDialog
 {
 public:
-	
 	CCatchScreenDlg(CWnd* pParent = NULL);	
-	
 	enum { IDD = IDD_DIALOGFORIMG };
-	CMyEdit	m_tipEdit;
-	CMyToolBar m_toolBar;
 
-public:
-	// 虚拟桌面：窗口客户区 (0,0) 对应屏幕 (m_nOriginX, m_nOriginY)
+	CMyEdit m_tipEdit;
+	CDarkToolBar m_toolBar;
+
 	int m_nOriginX;
 	int m_nOriginY;
 	int m_nScreenWidth;
 	int m_nScreenHeight;
 
 	BOOL m_bLBtnDown;
-
-	BOOL m_bNeedShowMsg;            // 显示截取矩形大小信息
-	BOOL m_bDraw;                   // 是否为截取状态
-	BOOL m_bFirstDraw;              // 是否为首次截取
-	BOOL m_bQuit;                   // 是否为退出
-	CPoint m_startPt;				// 截取矩形左上角位置
+	BOOL m_bDraw;
+	BOOL m_bFirstDraw;
+	BOOL m_bQuit;
+	CPoint m_startPt;
 	
-	CMyTracker m_rectTracker;       // 像皮筋类
-	CBrush   m_brush;			
-    HCURSOR  m_hCursor;             // 光标
-	CBitmap* m_pBitmap;             // Edit关联控件的背景位图
+	CMyTracker m_rectTracker;
+	HCURSOR m_hCursor;
+	CBitmap* m_pBitmap;
 	HBITMAP m_hBitmap;
 	
-	CRgn m_rgn;						// 背景擦除区域
-	CAnnotationLayer m_annotation;  // 选区标注层
-	CRect m_annotationRect;         // 与标注层尺寸对应的选区（客户区坐标）
+	CAnnotationLayer m_annotation;
+	CRect m_annotationRect;
+	CRect m_rectPrevDrag;
 
 public:
-	HBITMAP CopyScreenToBitmap(LPRECT lpRect,BOOL bSave=FALSE);   /* 拷贝桌面到位图（内部/初始化用） */
-	HBITMAP BuildSelectionBitmap(const CRect& clientRect) const;  /* 底图 + 标注合成 */
+	HBITMAP CopyScreenToBitmap(LPRECT lpRect, BOOL bSave = FALSE);
+	HBITMAP BuildSelectionBitmap(const CRect& clientRect) const;
 	BOOL CopySelectionToClipboard(const CRect& clientRect);
 	BOOL SaveSelectionToFile(const CRect& clientRect);
 	void SyncAnnotationLayerToSelection();
 	void ClearAnnotationLayer();
-
-	void UpdateTipString();                            //显示操作提示信息
-	void DrawMessage(CRect &inRect,CDC * pDC);       //显示截取矩形信息
-	void InvalidateRgnWindow();                        //重画窗口
-	void UpdateMousePointRGBString();
-
-	CString m_strRgb;
-	CString m_strEditTip;
-
-	void SetEidtWndText();
-	CString GetEditText();
+	void InvalidateAroundRect(const CRect& area);
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);
@@ -87,14 +65,9 @@ protected:
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
-	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
-
 
 	DECLARE_MESSAGE_MAP()
-
 	virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
 };
-
-///////////////////////////////////////////////////////////////////////////////////////////
 
 #endif 
