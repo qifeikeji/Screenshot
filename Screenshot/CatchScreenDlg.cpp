@@ -452,20 +452,20 @@ HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
 	if (nWidth <= 0 || nHeight <= 0)
 		return NULL;
 
-	HDC hScrDC = GetDC(NULL);
+	HDC hScrDC = ::GetDC(NULL);
 	if (!hScrDC)
 		return NULL;
 	HDC hMemDC = CreateCompatibleDC(hScrDC);
 	if (!hMemDC)
 	{
-		DeleteDC(hScrDC);
+		::ReleaseDC(NULL, hScrDC);
 		return NULL;
 	}
 	HBITMAP hBitmap = CreateCompatibleBitmap(hScrDC, nWidth, nHeight);
 	if (!hBitmap)
 	{
 		DeleteDC(hMemDC);
-		DeleteDC(hScrDC);
+		::ReleaseDC(NULL, hScrDC);
 		return NULL;
 	}
 	HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
@@ -480,7 +480,7 @@ HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
 
 	SelectObject(hMemDC, hOld);
 	DeleteDC(hMemDC);
-	ReleaseDC(NULL, hScrDC);
+	::ReleaseDC(NULL, hScrDC);
 	return hBitmap;
 }
 
@@ -560,13 +560,13 @@ HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 	if (IsRectEmpty(lpRect))
 		return NULL;
 	//?????????????????
-	hScrDC = GetDC(NULL);
+	hScrDC = ::GetDC(NULL);
 	if (!hScrDC)
 		return NULL;
 	hMemDC = CreateCompatibleDC(hScrDC);
 	if (!hMemDC)
 	{
-		ReleaseDC(NULL, hScrDC);
+		::ReleaseDC(NULL, hScrDC);
 		return NULL;
 	}
 	nX = lpRect->left;
@@ -609,7 +609,7 @@ HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 
 	hBitmap = (HBITMAP)SelectObject(hMemDC, hOldBitmap);
 	DeleteDC(hMemDC);
-	ReleaseDC(NULL, hScrDC);
+	::ReleaseDC(NULL, hScrDC);
 	return hBitmap;
 }
 
