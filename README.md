@@ -7,6 +7,8 @@
 
 双缓冲，完美无闪烁。
 
+**Windows 构建（Qt 主界面 + MFC 截图）**：见 [docs/BUILD-WINDOWS-QT.md](docs/BUILD-WINDOWS-QT.md)。发布物为含 Qt DLL 的绿色文件夹，无需用户安装 Qt。
+
 ##### 截图
 
 ![snatshot.png](snatshot.png)

@@ -1,4 +1,3 @@
-# Build MFC project on GitHub-hosted Windows; download exe from Run Artifacts.
 name: Build Windows
 
 on:
@@ -15,7 +14,6 @@ on:
         type: choice
         options:
           - x64
-          - Win32
       configuration:
         description: Configuration
         required: true
@@ -28,87 +26,64 @@ on:
 env:
   BUILD_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.platform || 'x64' }}
   BUILD_CONFIGURATION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.configuration || 'Release' }}
+  QT_VERSION: '6.7.3'
 
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2019_64
+          cache: true
 
       - name: Setup MSVC (MFC)
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ env.BUILD_PLATFORM == 'x64' && 'x64' || 'x86' }}
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Build solution
+      - name: Configure CMake
         shell: pwsh
         run: |
-          $platform = $env:BUILD_PLATFORM
+          cmake -B build -G "Visual Studio 17 2022" -A $env:BUILD_PLATFORM `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --config $env:BUILD_CONFIGURATION --parallel
+
+      - name: Verify binary
+        shell: pwsh
+        run: |
           $config = $env:BUILD_CONFIGURATION
-          Write-Host "Building $config | $platform"
-          msbuild Screenshot.sln `
-            /t:Rebuild `
-            /p:Configuration=$config `
-            /p:Platform=$platform `
-            /m `
-            /verbosity:minimal
-
-      - name: Verify Release binary
-        if: env.BUILD_CONFIGURATION == 'Release'
-        shell: pwsh
-        run: |
-          $platform = $env:BUILD_PLATFORM
-          $exe = Join-Path $PWD "$platform\Release\Screenshot.exe"
+          $exe = Join-Path $PWD "build\$config\Screenshot.exe"
           if (-not (Test-Path $exe)) { throw "Missing $exe" }
-          $size = (Get-Item $exe).Length
-          Write-Host "Screenshot.exe size: $size bytes"
-          if ($size -lt 500000) {
-            throw "Release exe is too small ($size B). Expected static MFC/MT build (usually several MB). Check vcxproj UseOfMfc=Static and RuntimeLibrary=MultiThreaded."
-          }
-          dumpbin /dependents $exe | Tee-Object -Variable dep
-          if ($dep -match 'VCRUNTIME140|MFC140|MSVCP140') {
-            throw "Release exe still depends on VC/MFC DLLs; side-by-side may fail on clean PCs."
-          }
+          Write-Host "Screenshot.exe size: $((Get-Item $exe).Length) bytes"
 
-      - name: Collect output
+      - name: Collect portable folder
         shell: pwsh
         run: |
-          $platform = $env:BUILD_PLATFORM
           $config = $env:BUILD_CONFIGURATION
-          $outDir = Join-Path $PWD "$platform\$config"
-          if (-not (Test-Path $outDir)) {
-            throw "Output directory not found: $outDir"
-          }
+          $src = Join-Path $PWD "build\$config"
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          if ($config -eq 'Release') {
-            Copy-Item -Path "$outDir\Screenshot.exe" -Destination artifact -Force
-            @"
-          Screenshot (${platform} ${config})
+          Copy-Item -Path "$src\*" -Destination artifact -Recurse -Force
+          @"
+          Screenshot (Qt UI + MFC capture) — $env:BUILD_PLATFORM $config
 
-          Release builds use static MFC and static CRT (/MT).
-          You only need Screenshot.exe on Windows 10 or later (64-bit OS for x64 build).
+          Unzip and run Screenshot.exe. Qt DLLs are included; no Qt install required.
+          Windows 10 or later recommended (x64 build for 64-bit Windows).
 
-          PDB files are debug symbols for developers; they are not required to run the app.
+          settings.json is created next to the exe on first save.
           "@ | Set-Content -Path artifact\README.txt -Encoding UTF8
-          } else {
-            Copy-Item -Path "$outDir\Screenshot.exe" -Destination artifact -Force
-            Copy-Item -Path "$outDir\Screenshot.pdb" -Destination artifact -Force -ErrorAction SilentlyContinue
-            @"
-          Screenshot (${platform} ${config})
-
-          Debug build: run Screenshot.exe on a PC with Visual C++ 2022 x64 debug runtime installed,
-          or rebuild as Release for distribution.
-
-          Screenshot.pdb helps Visual Studio debug crashes; not needed for normal use.
-          "@ | Set-Content -Path artifact\README.txt -Encoding UTF8
-          }
-          Get-ChildItem artifact | Format-Table Name, Length
+          Get-ChildItem artifact | Select-Object Name, Length | Format-Table
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
