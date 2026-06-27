@@ -1,11 +1,11 @@
-# 在 GitHub 托管 Windows 环境中编译 MFC 项目，产物在 Run 页面 Artifacts 下载。
+# Build MFC project on GitHub-hosted Windows; download exe from Run Artifacts.
 name: Build Windows
 
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: 目标平台
+        description: Target platform
         required: true
         default: x64
         type: choice
@@ -13,7 +13,7 @@ on:
           - x64
           - Win32
       configuration:
-        description: 编译配置
+        description: Configuration
         required: true
         default: Release
         type: choice
@@ -23,7 +23,6 @@ on:
 
 jobs:
   build:
-    # 镜像已含 VS2022 Enterprise + VC.ATLMFC，无需再 modify 安装 MFC
     runs-on: windows-2022
     timeout-minutes: 45
 
@@ -38,17 +37,6 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
-
-      - name: Verify MFC headers
-        shell: pwsh
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $installPath = & $vswhere -latest -property installationPath
-          $afx = Get-ChildItem -Path $installPath -Recurse -Filter 'afxwin.h' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $afx) {
-            throw 'MFC headers (afxwin.h) not found. Runner image may have changed; open an issue.'
-          }
-          Write-Host "Found MFC: $($afx.FullName)"
 
       - name: Build solution
         shell: pwsh
@@ -71,14 +59,30 @@ jobs:
           if (-not (Test-Path $outDir)) {
             throw "Output directory not found: $outDir"
           }
-          $exe = Get-ChildItem -Path $outDir -Filter '*.exe' -ErrorAction SilentlyContinue
-          if (-not $exe) {
-            throw "No .exe found under $outDir"
-          }
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          Copy-Item -Path "$outDir\*" -Destination artifact -Recurse -Force
-          Write-Host "Packaged files:"
-          Get-ChildItem artifact -Recurse | ForEach-Object { $_.FullName }
+          if ($config -eq 'Release') {
+            Copy-Item -Path "$outDir\Screenshot.exe" -Destination artifact -Force
+            @"
+          Screenshot (${platform} ${config})
+
+          Release builds use static MFC and static CRT (/MT).
+          You only need Screenshot.exe on Windows 10 or later (64-bit OS for x64 build).
+
+          PDB files are debug symbols for developers; they are not required to run the app.
+          "@ | Set-Content -Path artifact\README.txt -Encoding UTF8
+          } else {
+            Copy-Item -Path "$outDir\Screenshot.exe" -Destination artifact -Force
+            Copy-Item -Path "$outDir\Screenshot.pdb" -Destination artifact -Force -ErrorAction SilentlyContinue
+            @"
+          Screenshot (${platform} ${config})
+
+          Debug build: run Screenshot.exe on a PC with Visual C++ 2022 x64 debug runtime installed,
+          or rebuild as Release for distribution.
+
+          Screenshot.pdb helps Visual Studio debug crashes; not needed for normal use.
+          "@ | Set-Content -Path artifact\README.txt -Encoding UTF8
+          }
+          Get-ChildItem artifact | Format-Table Name, Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
