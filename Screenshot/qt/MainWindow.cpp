@@ -1,3 +1,6 @@
+#include "stdafx.h"
+#include "AppSettings.h"
+
 #include "MainWindow.h"
 
 #include <QCloseEvent>
@@ -9,9 +12,6 @@
 
 #include "ScreenshotBridge.h"
 #include "SettingsDialog.h"
-
-#include "stdafx.h"
-#include "AppSettings.h"
 
 MainWindow::MainWindow(QWidget* parent)
 	: QWidget(parent)

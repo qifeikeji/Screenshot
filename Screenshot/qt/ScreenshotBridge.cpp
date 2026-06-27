@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "AppSettings.h"
 #include "ScreenshotBridge.h"
 #include "CatchScreenDlg.h"
 #include "ScreenCapture.h"

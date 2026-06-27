@@ -2,7 +2,10 @@
 
 #include <QWidget>
 
+class QCloseEvent;
 class QPushButton;
+class QResizeEvent;
+class QShowEvent;
 
 class MainWindow : public QWidget
 {
@@ -12,7 +15,7 @@ public:
 	explicit MainWindow(QWidget* parent = nullptr);
 	~MainWindow() override;
 
-	static constexpr UINT kHotKeyId = 1;
+	static constexpr unsigned kHotKeyId = 1;
 
 protected:
 	bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;

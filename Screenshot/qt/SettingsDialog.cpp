@@ -1,3 +1,6 @@
+#include "stdafx.h"
+#include "AppSettings.h"
+
 #include "SettingsDialog.h"
 
 #include <QCheckBox>
@@ -12,9 +15,6 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
-
-#include "stdafx.h"
-#include "AppSettings.h"
 
 namespace {
 
