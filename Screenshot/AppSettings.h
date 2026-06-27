@@ -4,10 +4,8 @@ struct AppSettings
 {
 	int windowWidth;
 	int windowHeight;
-	int maskGray;
-	int maskOpacity;
-	int launchScreenX;
-	int launchScreenY;
+	UINT hotkeyModifiers;
+	UINT hotkeyVk;
 
 	AppSettings();
 
@@ -19,3 +17,6 @@ struct AppSettings
 };
 
 AppSettings& GetAppSettings();
+
+void HotKeyToHotKeyCtrl(UINT mod, UINT vk, WORD& hotKeyWord);
+void HotKeyFromHotKeyCtrl(WORD hotKeyWord, UINT& mod, UINT& vk);

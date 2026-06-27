@@ -17,22 +17,18 @@ void AppSettings::SetDefaults()
 {
 	windowWidth = 280;
 	windowHeight = 88;
-	maskGray = 128;
-	maskOpacity = 39;
-	launchScreenX = 0;
-	launchScreenY = 0;
+	hotkeyModifiers = MOD_CONTROL | MOD_ALT;
+	hotkeyVk = (UINT)'A';
 }
 
 void AppSettings::Clamp()
 {
 	if (windowWidth < 220) windowWidth = 220;
 	if (windowWidth > 800) windowWidth = 800;
-	if (windowHeight < 80) windowHeight = 80;
+	if (windowHeight < 72) windowHeight = 72;
 	if (windowHeight > 600) windowHeight = 600;
-	if (maskGray < 0) maskGray = 0;
-	if (maskGray > 255) maskGray = 255;
-	if (maskOpacity < 0) maskOpacity = 0;
-	if (maskOpacity > 100) maskOpacity = 100;
+	if (hotkeyVk == 0)
+		hotkeyVk = (UINT)'A';
 }
 
 CString AppSettings::GetSettingsFilePath() const
@@ -63,6 +59,31 @@ static int ParseJsonInt(const CString& json, LPCTSTR key, int fallback)
 	return _ttoi(json.Mid(pos));
 }
 
+void HotKeyToHotKeyCtrl(UINT mod, UINT vk, WORD& hotKeyWord)
+{
+	BYTE hotkeyF = 0;
+	if (mod & MOD_SHIFT)
+		hotkeyF |= HOTKEYF_SHIFT;
+	if (mod & MOD_CONTROL)
+		hotkeyF |= HOTKEYF_CONTROL;
+	if (mod & MOD_ALT)
+		hotkeyF |= HOTKEYF_ALT;
+	hotKeyWord = MAKEWORD((BYTE)vk, hotkeyF);
+}
+
+void HotKeyFromHotKeyCtrl(WORD hotKeyWord, UINT& mod, UINT& vk)
+{
+	vk = LOBYTE(hotKeyWord);
+	mod = 0;
+	const BYTE hotkeyF = HIBYTE(hotKeyWord);
+	if (hotkeyF & HOTKEYF_SHIFT)
+		mod |= MOD_SHIFT;
+	if (hotkeyF & HOTKEYF_CONTROL)
+		mod |= MOD_CONTROL;
+	if (hotkeyF & HOTKEYF_ALT)
+		mod |= MOD_ALT;
+}
+
 BOOL AppSettings::Load()
 {
 	SetDefaults();
@@ -78,8 +99,8 @@ BOOL AppSettings::Load()
 
 	windowWidth = ParseJsonInt(json, _T("windowWidth"), windowWidth);
 	windowHeight = ParseJsonInt(json, _T("windowHeight"), windowHeight);
-	maskGray = ParseJsonInt(json, _T("maskGray"), maskGray);
-	maskOpacity = ParseJsonInt(json, _T("maskOpacity"), maskOpacity);
+	hotkeyModifiers = (UINT)ParseJsonInt(json, _T("hotkeyModifiers"), (int)hotkeyModifiers);
+	hotkeyVk = (UINT)ParseJsonInt(json, _T("hotkeyVk"), (int)hotkeyVk);
 	Clamp();
 	return TRUE;
 }
@@ -94,10 +115,10 @@ BOOL AppSettings::Save() const
 		_T("{\r\n")
 		_T("  \"windowWidth\": %d,\r\n")
 		_T("  \"windowHeight\": %d,\r\n")
-		_T("  \"maskGray\": %d,\r\n")
-		_T("  \"maskOpacity\": %d\r\n")
+		_T("  \"hotkeyModifiers\": %u,\r\n")
+		_T("  \"hotkeyVk\": %u\r\n")
 		_T("}\r\n"),
-		temp.windowWidth, temp.windowHeight, temp.maskGray, temp.maskOpacity);
+		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk);
 
 	try
 	{

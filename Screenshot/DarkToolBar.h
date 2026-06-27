@@ -9,7 +9,7 @@ public:
 	virtual ~CDarkToolBar();
 
 	BOOL Create(CWnd* pParent);
-	void SetAlignBottomRight(int screenRight, int screenBottom);
+	void SetInsideSelection(const CRect& selectionScreen);
 	void ShowBar();
 	void HideBar();
 	HWND GetHWND() const { return m_hWnd; }

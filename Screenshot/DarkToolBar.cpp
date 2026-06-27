@@ -2,7 +2,6 @@
 #include "DarkToolBar.h"
 #include <GdiPlus.h>
 #include "resource.h"
-#include "ScreenCapture.h"
 
 using namespace Gdiplus;
 
@@ -69,30 +68,37 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 	return TRUE;
 }
 
-void CDarkToolBar::SetAlignBottomRight(int screenRight, int screenBottom)
+void CDarkToolBar::SetInsideSelection(const CRect& selectionScreen)
 {
 	if (!m_hWnd)
+		return;
+
+	CRect sel = selectionScreen;
+	sel.NormalizeRect();
+	if (sel.IsRectEmpty())
 		return;
 
 	CRect rc;
 	GetWindowRect(&rc);
 	const int w = rc.Width();
 	const int h = rc.Height();
+	const int margin = 6;
 
-	int x = screenRight - w;
-	int y = screenBottom + 6;
+	int x = sel.right - w - margin;
+	int y = sel.bottom - h - margin;
 
-	VirtualScreenInfo vsi = {};
-	QueryVirtualScreen(&vsi);
-	const int maxX = vsi.originX + vsi.width - w;
-	const int maxY = vsi.originY + vsi.height - h;
-	if (x < vsi.originX)
-		x = vsi.originX;
-	if (y < vsi.originY)
-		y = vsi.originY;
-	if (x > maxX)
+	const int minX = sel.left + margin;
+	const int minY = sel.top + margin;
+	const int maxX = sel.right - w - margin;
+	const int maxY = sel.bottom - h - margin;
+
+	if (x < minX)
+		x = minX;
+	if (y < minY)
+		y = minY;
+	if (maxX >= minX && x > maxX)
 		x = maxX;
-	if (y > maxY)
+	if (maxY >= minY && y > maxY)
 		y = maxY;
 
 	SetWindowPos(&wndTop, x, y, w, h, SWP_SHOWWINDOW);

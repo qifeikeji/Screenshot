@@ -26,6 +26,7 @@ BEGIN_MESSAGE_MAP(CScreenshotDlg, CDialog)
 	ON_WM_SIZE()
 	ON_WM_GETMINMAXINFO()
 	ON_WM_DESTROY()
+	ON_WM_HOTKEY()
 	ON_BN_CLICKED(IDC_BTN_START, &CScreenshotDlg::OnBnClickedBtnStart)
 	ON_BN_CLICKED(IDC_BTN_SETTINGS, &CScreenshotDlg::OnBnClickedBtnSettings)
 END_MESSAGE_MAP()
@@ -77,6 +78,7 @@ BOOL CScreenshotDlg::OnInitDialog()
 	m_btnStart.SetAccent(true);
 	m_btnSettings.SetAccent(false);
 	ApplyWindowSizeFromSettings();
+	RegisterScreenshotHotKey();
 	return TRUE;
 }
 
@@ -96,8 +98,31 @@ void CScreenshotDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 
 void CScreenshotDlg::OnDestroy()
 {
+	UnregisterScreenshotHotKey();
 	SaveWindowSizeToSettings();
 	CDialog::OnDestroy();
+}
+
+void CScreenshotDlg::RegisterScreenshotHotKey()
+{
+	UnregisterScreenshotHotKey();
+	const AppSettings& s = GetAppSettings();
+	if (!RegisterHotKey(m_hWnd, kHotKeyId, s.hotkeyModifiers, s.hotkeyVk))
+	{
+		// 可能被占用，静默失败；用户可在设置中更换
+	}
+}
+
+void CScreenshotDlg::UnregisterScreenshotHotKey()
+{
+	UnregisterHotKey(m_hWnd, kHotKeyId);
+}
+
+void CScreenshotDlg::OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2)
+{
+	if (nHotKeyId == kHotKeyId)
+		StartScreenshot();
+	CDialog::OnHotKey(nHotKeyId, nKey1, nKey2);
 }
 
 void CScreenshotDlg::OnPaint()
@@ -154,21 +179,22 @@ UINT SccreenShot_Thread(LPVOID lpParam)
 	return 0;
 }
 
-void CScreenshotDlg::OnBnClickedBtnStart()
+void CScreenshotDlg::StartScreenshot()
 {
-	CRect wr;
-	GetWindowRect(&wr);
-	AppSettings& s = GetAppSettings();
-	s.launchScreenX = wr.left;
-	s.launchScreenY = wr.top;
-	s.Save();
-
+	if (!IsWindowVisible())
+		return;
 	::ShowWindow(m_hWnd, SW_HIDE);
 	AfxBeginThread(SccreenShot_Thread, (LPVOID)GetSafeHwnd());
+}
+
+void CScreenshotDlg::OnBnClickedBtnStart()
+{
+	StartScreenshot();
 }
 
 void CScreenshotDlg::OnBnClickedBtnSettings()
 {
 	CSettingsDlg dlg(this);
-	dlg.DoModal();
+	if (dlg.DoModal() == IDOK)
+		RegisterScreenshotHotKey();
 }

@@ -11,7 +11,6 @@
 #include "stdafx.h"
 #include "Screenshot.h"
 #include "CatchScreenDlg.h"
-#include "AppSettings.h"
 #include "ScreenCapture.h"
 
 #include <GdiPlus.h>
@@ -106,44 +105,6 @@ BEGIN_MESSAGE_MAP(CCatchScreenDlg, CDialog)
 	ON_WM_RBUTTONDOWN()
 END_MESSAGE_MAP()
 
-namespace {
-
-void FillDimRect(Gdiplus::Graphics& g, const CRect& rc, BYTE gray, BYTE alpha)
-{
-	if (rc.IsRectEmpty())
-		return;
-	Gdiplus::SolidBrush brush(Gdiplus::Color(alpha, gray, gray, gray));
-	g.FillRectangle(&brush, (Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.top,
-		(Gdiplus::REAL)rc.Width(), (Gdiplus::REAL)rc.Height());
-}
-
-void PaintDimOutsideSelection(CDC& memDC, CDC& srcDC, const CRect& client,
-	const CRect& maskRegion, const CRect& selection)
-{
-	if (maskRegion.IsRectEmpty())
-		return;
-
-	const AppSettings& cfg = GetAppSettings();
-	const BYTE gray = (BYTE)cfg.maskGray;
-	const BYTE alpha = (BYTE)((cfg.maskOpacity * 255) / 100);
-
-	Gdiplus::Graphics g(memDC.m_hDC);
-	Gdiplus::SolidBrush dimBrush(Gdiplus::Color(alpha, gray, gray, gray));
-	g.FillRectangle(&dimBrush, (Gdiplus::REAL)maskRegion.left, (Gdiplus::REAL)maskRegion.top,
-		(Gdiplus::REAL)maskRegion.Width(), (Gdiplus::REAL)maskRegion.Height());
-
-	CRect sel = selection;
-	sel.NormalizeRect();
-	sel.IntersectRect(&sel, &maskRegion);
-	if (!sel.IsRectEmpty())
-	{
-		memDC.BitBlt(sel.left, sel.top, sel.Width(), sel.Height(),
-			&srcDC, sel.left, sel.top, SRCCOPY);
-	}
-}
-
-} // namespace
-
 void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 {
 	CRect inv = area;
@@ -161,24 +122,6 @@ void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 
 /////////////////////////////////////////////////////////////////////////////
 // CCatchScreenDlg message handlers
-
-namespace {
-const int kMaskRegionWidth = 10000;
-const int kMaskRegionHeight = 3000;
-} // namespace
-
-CRect CCatchScreenDlg::GetMaskClientRect() const
-{
-	const AppSettings& s = GetAppSettings();
-	CRect mask(
-		s.launchScreenX - m_nOriginX,
-		s.launchScreenY - m_nOriginY,
-		s.launchScreenX - m_nOriginX + kMaskRegionWidth,
-		s.launchScreenY - m_nOriginY + kMaskRegionHeight);
-	CRect client(0, 0, m_nScreenWidth, m_nScreenHeight);
-	mask.IntersectRect(&mask, &client);
-	return mask;
-}
 
 void CCatchScreenDlg::CancelCurrentSelection()
 {
@@ -203,9 +146,8 @@ void CCatchScreenDlg::PositionToolBar()
 {
 	CRect r = m_rectTracker.m_rect;
 	r.NormalizeRect();
-	CPoint pt(r.right, r.bottom);
-	ClientToScreen(&pt);
-	m_toolBar.SetAlignBottomRight(pt.x, pt.y);
+	ClientToScreen(&r);
+	m_toolBar.SetInsideSelection(r);
 }
 
 BOOL CCatchScreenDlg::OnInitDialog()
@@ -292,8 +234,6 @@ void CCatchScreenDlg::OnPaint()
 
 		if (m_bFirstDraw)
 		{
-			const CRect mask = GetMaskClientRect();
-			PaintDimOutsideSelection(memDC, srcDC, client, mask, m_rectTracker.m_rect);
 			m_rectTracker.Draw(&memDC);
 			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
@@ -371,6 +311,7 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 		const int dy = abs(point.y - m_startPt.y);
 		if (dx > 4 || dy > 4)
 		{
+			CopySelectionToClipboard(m_rectTracker.m_rect);
 			PositionToolBar();
 			m_toolBar.ShowBar();
 		}

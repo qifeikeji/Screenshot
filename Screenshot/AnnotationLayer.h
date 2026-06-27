@@ -1,6 +1,6 @@
 #pragma once
 
-// Ñ¡ÇøÄÚµÄ±ê×¢²ã£¨32 Î» ARGB£©£¬Óëµ×Í¼ºÏ³Éºóµ¼³ö¡£
+// Ñ¡ï¿½ï¿½ï¿½ÚµÄ±ï¿½×¢ï¿½ã£¨32 Î» ARGBï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½Ï³Éºóµ¼³ï¿½ï¿½ï¿½
 class CAnnotationLayer
 {
 public:
@@ -14,7 +14,7 @@ public:
 	HBITMAP GetBitmap() const { return m_hBitmap; }
 	CSize GetSize() const { return m_size; }
 
-	// ½«±ê×¢²ã°´ Alpha »ìºÏ»æÖÆµ½Ä¿±ê DC£¨Ä¿±ê×óÉÏ½Ç destX, destY£©
+	// ï¿½ï¿½ï¿½ï¿½×¢ï¿½ã°´ Alpha ï¿½ï¿½Ï»ï¿½ï¿½Æµï¿½Ä¿ï¿½ï¿½ DCï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½Ï½ï¿½ destX, destYï¿½ï¿½
 	void DrawOn(HDC hdcDest, int destX, int destY) const;
 
 private:

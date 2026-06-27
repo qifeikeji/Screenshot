@@ -18,6 +18,5 @@ protected:
 
 private:
 	CBrush m_brBg;
-	int m_gray;
-	int m_opacity;
+	CHotKeyCtrl m_hotKey;
 };

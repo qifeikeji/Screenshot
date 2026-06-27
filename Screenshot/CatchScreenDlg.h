@@ -51,7 +51,6 @@ public:
 	void ClearAnnotationLayer();
 	void InvalidateAroundRect(const CRect& area);
 	void PositionToolBar();
-	CRect GetMaskClientRect() const;
 	void BeginSelectionAt(CPoint point);
 	void CancelCurrentSelection();
 

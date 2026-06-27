@@ -5,18 +5,13 @@
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent)
 	: CDialog(CSettingsDlg::IDD, pParent)
-	, m_gray(128)
-	, m_opacity(39)
 {
 }
 
 void CSettingsDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
-	DDX_Text(pDX, IDC_EDIT_MASK_GRAY, m_gray);
-	DDX_Text(pDX, IDC_EDIT_MASK_OPACITY, m_opacity);
-	DDV_MinMaxInt(pDX, m_gray, 0, 255);
-	DDV_MinMaxInt(pDX, m_opacity, 0, 100);
+	DDX_Control(pDX, IDC_HOTKEY_SCREENSHOT, m_hotKey);
 }
 
 BEGIN_MESSAGE_MAP(CSettingsDlg, CDialog)
@@ -27,13 +22,14 @@ END_MESSAGE_MAP()
 BOOL CSettingsDlg::OnInitDialog()
 {
 	const AppSettings& s = GetAppSettings();
-	m_gray = s.maskGray;
-	m_opacity = s.maskOpacity;
 	m_brBg.CreateSolidBrush(RGB(30, 30, 30));
 
 	CDialog::OnInitDialog();
 	SetWindowText(_T("设置"));
-	UpdateData(FALSE);
+
+	WORD hk = 0;
+	HotKeyToHotKeyCtrl(s.hotkeyModifiers, s.hotkeyVk, hk);
+	m_hotKey.SetHotKey(LOBYTE(hk), HIBYTE(hk));
 	return TRUE;
 }
 
@@ -50,11 +46,25 @@ HBRUSH CSettingsDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 void CSettingsDlg::OnBnClickedOk()
 {
-	if (!UpdateData(TRUE))
+	DWORD dw = m_hotKey.GetHotKey();
+	WORD hk = MAKEWORD(LOBYTE(dw), HIBYTE(dw));
+	UINT mod = 0;
+	UINT vk = 0;
+	HotKeyFromHotKeyCtrl(hk, mod, vk);
+	if (vk == 0)
+	{
+		AfxMessageBox(_T("请设置有效的快捷键。"));
 		return;
+	}
+	if (mod == 0)
+	{
+		AfxMessageBox(_T("快捷键需包含 Ctrl、Alt 或 Shift 等组合键。"));
+		return;
+	}
+
 	AppSettings& s = GetAppSettings();
-	s.maskGray = m_gray;
-	s.maskOpacity = m_opacity;
+	s.hotkeyModifiers = mod;
+	s.hotkeyVk = vk;
 	s.Clamp();
 	s.Save();
 	CDialog::OnOK();

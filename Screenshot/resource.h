@@ -26,6 +26,7 @@
 #define IDC_EDIT_WIN_H                  1004
 #define IDC_EDIT_MASK_GRAY              1005
 #define IDC_EDIT_MASK_OPACITY           1006
+#define IDC_HOTKEY_SCREENSHOT           1007
 
 // Next default values for new objects
 // 
@@ -33,7 +34,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        146
 #define _APS_NEXT_COMMAND_VALUE         32772
-#define _APS_NEXT_CONTROL_VALUE         1003
+#define _APS_NEXT_CONTROL_VALUE         1008
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
