@@ -50,6 +50,23 @@ jobs:
             /m `
             /verbosity:minimal
 
+      - name: Verify Release binary
+        if: inputs.configuration == 'Release'
+        shell: pwsh
+        run: |
+          $platform = '${{ inputs.platform }}'
+          $exe = Join-Path $PWD "$platform\Release\Screenshot.exe"
+          if (-not (Test-Path $exe)) { throw "Missing $exe" }
+          $size = (Get-Item $exe).Length
+          Write-Host "Screenshot.exe size: $size bytes"
+          if ($size -lt 500000) {
+            throw "Release exe is too small ($size B). Expected static MFC/MT build (usually several MB). Check vcxproj UseOfMfc=Static and RuntimeLibrary=MultiThreaded."
+          }
+          dumpbin /dependents $exe | Tee-Object -Variable dep
+          if ($dep -match 'VCRUNTIME140|MFC140|MSVCP140') {
+            throw "Release exe still depends on VC/MFC DLLs; side-by-side may fail on clean PCs."
+          }
+
       - name: Collect output
         shell: pwsh
         run: |
