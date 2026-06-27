@@ -7,6 +7,7 @@ struct AppSettings
 	UINT hotkeyModifiers;
 	UINT hotkeyVk;
 	BOOL copyAndExitAfterSelect;
+	BOOL singleMonitorCapture;
 	CString saveDirectory;
 
 	AppSettings();

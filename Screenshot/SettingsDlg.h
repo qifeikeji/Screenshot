@@ -2,7 +2,8 @@
 
 #include "resource.h"
 #include "DarkButton.h"
-#include "DarkHotKeyFrame.h"
+#include "DarkMacInputHost.h"
+#include "DarkMacCheckBox.h"
 
 class CSettingsDlg : public CDialog
 {
@@ -22,5 +23,8 @@ private:
 	CBrush m_brBg;
 	CDarkButton m_btnOk;
 	CDarkButton m_btnCancel;
-	CDarkHotKeyFrame m_hotKeyFrame;
+	CDarkMacInputHost m_hotKeyHost;
+	CDarkMacInputHost m_saveDirHost;
+	CDarkMacCheckBox m_checkCopyExit;
+	CDarkMacCheckBox m_checkSingleMonitor;
 };

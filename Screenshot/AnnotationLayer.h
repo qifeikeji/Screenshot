@@ -11,6 +11,7 @@ public:
 	void Clear();
 	void EnsureSize(int cx, int cy);
 	bool IsValid() const;
+	bool HasVisibleContent() const;
 
 	HBITMAP GetBitmap() const { return m_hBitmap; }
 	CSize GetSize() const { return m_size; }
@@ -27,14 +28,17 @@ public:
 	void DrawTextAt(int x, int y, LPCTSTR text, int height, COLORREF color);
 
 private:
+	void FixAlphaChannel() const;
+	void RefreshBitsPointer();
 	void ReleaseBitmap();
-	HBITMAP CreateTransparentBitmap(int cx, int cy) const;
+	HBITMAP CreateTransparentBitmap(int cx, int cy);
 	HBITMAP CloneBitmap(HBITMAP src) const;
 	HDC BeginDraw(HGDIOBJ* outOld);
 	void EndDraw(HDC hdc, HGDIOBJ old);
 
 	HBITMAP m_hBitmap;
 	CSize m_size;
+	mutable void* m_pBits;
 	std::vector<HBITMAP> m_undoStack;
 	static const size_t kMaxUndo = 24;
 };

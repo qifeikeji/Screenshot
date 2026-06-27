@@ -5,6 +5,7 @@
 CAnnotationLayer::CAnnotationLayer()
 	: m_hBitmap(NULL)
 	, m_size(0, 0)
+	, m_pBits(NULL)
 {
 }
 
@@ -21,6 +22,7 @@ void CAnnotationLayer::ReleaseBitmap()
 		m_hBitmap = NULL;
 	}
 	m_size = CSize(0, 0);
+	m_pBits = NULL;
 }
 
 void CAnnotationLayer::Clear()
@@ -34,7 +36,7 @@ void CAnnotationLayer::Clear()
 	ReleaseBitmap();
 }
 
-HBITMAP CAnnotationLayer::CreateTransparentBitmap(int cx, int cy) const
+HBITMAP CAnnotationLayer::CreateTransparentBitmap(int cx, int cy)
 {
 	if (cx <= 0 || cy <= 0)
 		return NULL;
@@ -56,6 +58,35 @@ HBITMAP CAnnotationLayer::CreateTransparentBitmap(int cx, int cy) const
 	return hBmp;
 }
 
+void CAnnotationLayer::RefreshBitsPointer()
+{
+	m_pBits = NULL;
+	if (!m_hBitmap)
+		return;
+	DIBSECTION ds = {};
+	if (GetObject(m_hBitmap, sizeof(DIBSECTION), &ds) == sizeof(DIBSECTION))
+		m_pBits = ds.dsBm.bmBits;
+}
+
+void CAnnotationLayer::FixAlphaChannel() const
+{
+	if (!m_pBits || m_size.cx <= 0 || m_size.cy <= 0)
+		return;
+	DWORD* px = static_cast<DWORD*>(m_pBits);
+	const int n = m_size.cx * m_size.cy;
+	for (int i = 0; i < n; ++i)
+	{
+		const DWORD c = px[i];
+		const BYTE r = (BYTE)((c >> 16) & 0xFF);
+		const BYTE g = (BYTE)((c >> 8) & 0xFF);
+		const BYTE b = (BYTE)(c & 0xFF);
+		if (r | g | b)
+			px[i] = 0xFF000000 | (c & 0x00FFFFFF);
+		else
+			px[i] = 0;
+	}
+}
+
 HBITMAP CAnnotationLayer::CloneBitmap(HBITMAP src) const
 {
 	if (!src)
@@ -64,9 +95,21 @@ HBITMAP CAnnotationLayer::CloneBitmap(HBITMAP src) const
 	GetObject(src, sizeof(bm), &bm);
 	const int w = bm.bmWidth;
 	const int h = abs(bm.bmHeight);
-	HBITMAP dst = CreateTransparentBitmap(w, h);
+
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = w;
+	bmi.bmiHeader.biHeight = -h;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+	void* pBits = NULL;
+	HDC hdcScreen = GetDC(NULL);
+	HBITMAP dst = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, &pBits, NULL, 0);
+	ReleaseDC(NULL, hdcScreen);
 	if (!dst)
 		return NULL;
+
 	HDC hdc = CreateCompatibleDC(NULL);
 	HGDIOBJ oldD = SelectObject(hdc, dst);
 	HDC hdcS = CreateCompatibleDC(NULL);
@@ -98,12 +141,29 @@ void CAnnotationLayer::EnsureSize(int cx, int cy)
 	ReleaseBitmap();
 	m_hBitmap = CreateTransparentBitmap(cx, cy);
 	if (m_hBitmap)
+	{
 		m_size = CSize(cx, cy);
+		RefreshBitsPointer();
+	}
 }
 
 bool CAnnotationLayer::IsValid() const
 {
 	return m_hBitmap != NULL && m_size.cx > 0 && m_size.cy > 0;
+}
+
+bool CAnnotationLayer::HasVisibleContent() const
+{
+	if (!m_pBits || m_size.cx <= 0 || m_size.cy <= 0)
+		return false;
+	const DWORD* px = static_cast<const DWORD*>(m_pBits);
+	const int n = m_size.cx * m_size.cy;
+	for (int i = 0; i < n; ++i)
+	{
+		if (px[i] & 0x00FFFFFF)
+			return true;
+	}
+	return false;
 }
 
 HDC CAnnotationLayer::BeginDraw(HGDIOBJ* outOld)
@@ -150,6 +210,7 @@ BOOL CAnnotationLayer::Undo()
 		return FALSE;
 	DeleteObject(m_hBitmap);
 	m_hBitmap = replacement;
+	RefreshBitsPointer();
 	return TRUE;
 }
 
@@ -157,6 +218,8 @@ void CAnnotationLayer::DrawOn(HDC hdcDest, int destX, int destY) const
 {
 	if (!IsValid())
 		return;
+
+	FixAlphaChannel();
 
 	HDC hdcSrc = CreateCompatibleDC(hdcDest);
 	if (!hdcSrc)
@@ -166,7 +229,7 @@ void CAnnotationLayer::DrawOn(HDC hdcDest, int destX, int destY) const
 	BLENDFUNCTION blend = {};
 	blend.BlendOp = AC_SRC_OVER;
 	blend.SourceConstantAlpha = 255;
-	blend.AlphaFormat = 0;
+	blend.AlphaFormat = AC_SRC_ALPHA;
 	AlphaBlend(hdcDest, destX, destY, m_size.cx, m_size.cy,
 		hdcSrc, 0, 0, m_size.cx, m_size.cy, blend);
 	SelectObject(hdcSrc, hOld);

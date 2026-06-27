@@ -37,16 +37,21 @@ BOOL CSettingsDlg::OnInitDialog()
 	SetDlgItemText(IDC_STATIC_HOTKEY_LABEL, L"\u622a\u56fe\u5feb\u6377\u952e");
 	SetDlgItemText(IDC_STATIC_SAVE_DIR, L"\u4fdd\u5b58\u56fe\u7247\u8def\u5f84");
 	SetDlgItemText(IDC_CHECK_COPY_EXIT, L"\u6846\u9009\u540e\u76f4\u63a5\u590d\u5236\u5230\u526a\u8d34\u677f\u5e76\u9000\u51fa\u622a\u56fe");
+	SetDlgItemText(IDC_CHECK_SINGLE_MONITOR, L"\u5355\u663e\u793a\u5668\u622a\u56fe\uff08\u5feb\u6377\u952e\u65f6\u53ea\u622a\u9f20\u6807\u6240\u5728\u663e\u793a\u5668\uff09");
 	SetDlgItemText(IDC_EDIT_SAVE_DIR, s.saveDirectory);
 	CheckDlgButton(IDC_CHECK_COPY_EXIT, s.copyAndExitAfterSelect ? BST_CHECKED : BST_UNCHECKED);
+	CheckDlgButton(IDC_CHECK_SINGLE_MONITOR, s.singleMonitorCapture ? BST_CHECKED : BST_UNCHECKED);
 
 	WORD hk = 0;
 	HotKeyToHotKeyCtrl(s.hotkeyModifiers, s.hotkeyVk, hk);
 	if (CWnd* pHot = GetDlgItem(IDC_HOTKEY_SCREENSHOT))
 		pHot->SendMessage(HKM_SETHOTKEY, hk, 0);
 
-	CRect hotRect(92, 10, 280, 32);
-	m_hotKeyFrame.Create(this, hotRect, IDC_HOTKEY_SCREENSHOT);
+	m_hotKeyHost.Create(this, CRect(92, 12, 280, 40), IDC_HOTKEY_SCREENSHOT);
+	m_saveDirHost.Create(this, CRect(92, 46, 280, 74), IDC_EDIT_SAVE_DIR);
+
+	m_checkCopyExit.SubclassDlgItem(IDC_CHECK_COPY_EXIT, this);
+	m_checkSingleMonitor.SubclassDlgItem(IDC_CHECK_SINGLE_MONITOR, this);
 
 	m_btnOk.SubclassDlgItem(IDOK, this);
 	m_btnCancel.SubclassDlgItem(IDCANCEL, this);
@@ -59,28 +64,7 @@ BOOL CSettingsDlg::OnInitDialog()
 
 HBRUSH CSettingsDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
-	const UINT id = pWnd ? (UINT)pWnd->GetDlgCtrlID() : 0;
 	if (nCtlColor == CTLCOLOR_DLG || nCtlColor == CTLCOLOR_STATIC)
-	{
-		pDC->SetBkColor(RGB(30, 30, 30));
-		pDC->SetTextColor(RGB(235, 235, 235));
-		return (HBRUSH)m_brBg.GetSafeHandle();
-	}
-	if (id == IDC_EDIT_SAVE_DIR && nCtlColor == CTLCOLOR_EDIT)
-	{
-		pDC->SetBkColor(RGB(42, 42, 44));
-		pDC->SetTextColor(RGB(235, 235, 235));
-		static CBrush brEdit(RGB(42, 42, 44));
-		return (HBRUSH)brEdit.GetSafeHandle();
-	}
-	if (id == IDC_HOTKEY_SCREENSHOT && (nCtlColor == CTLCOLOR_EDIT || nCtlColor == CTLCOLOR_MSGBOX))
-	{
-		pDC->SetBkColor(RGB(42, 42, 44));
-		pDC->SetTextColor(RGB(235, 235, 235));
-		static CBrush brHot(RGB(42, 42, 44));
-		return (HBRUSH)brHot.GetSafeHandle();
-	}
-	if (id == IDC_CHECK_COPY_EXIT && nCtlColor == CTLCOLOR_BTN)
 	{
 		pDC->SetBkColor(RGB(30, 30, 30));
 		pDC->SetTextColor(RGB(235, 235, 235));
@@ -118,6 +102,7 @@ void CSettingsDlg::OnBnClickedOk()
 	cfg.hotkeyModifiers = mod;
 	cfg.hotkeyVk = vk;
 	cfg.copyAndExitAfterSelect = (IsDlgButtonChecked(IDC_CHECK_COPY_EXIT) == BST_CHECKED);
+	cfg.singleMonitorCapture = (IsDlgButtonChecked(IDC_CHECK_SINGLE_MONITOR) == BST_CHECKED);
 	GetDlgItemText(IDC_EDIT_SAVE_DIR, cfg.saveDirectory);
 	cfg.saveDirectory.Trim();
 	cfg.Clamp();

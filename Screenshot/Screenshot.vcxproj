@@ -210,7 +210,8 @@
     <ClCompile Include="AnnotationLayer.cpp" />
     <ClCompile Include="CatchScreenDlg.cpp" />
     <ClCompile Include="DarkButton.cpp" />
-    <ClCompile Include="DarkHotKeyFrame.cpp" />
+    <ClCompile Include="DarkMacCheckBox.cpp" />
+    <ClCompile Include="DarkMacInputHost.cpp" />
     <ClCompile Include="DarkToolBar.cpp" />
     <ClCompile Include="MyEdit.cpp" />
     <ClCompile Include="MyTracker.cpp" />
@@ -231,7 +232,8 @@
     <ClInclude Include="AnnotationLayer.h" />
     <ClInclude Include="CatchScreenDlg.h" />
     <ClInclude Include="DarkButton.h" />
-    <ClInclude Include="DarkHotKeyFrame.h" />
+    <ClInclude Include="DarkMacCheckBox.h" />
+    <ClInclude Include="DarkMacInputHost.h" />
     <ClInclude Include="DarkToolBar.h" />
     <ClInclude Include="MyEdit.h" />
     <ClInclude Include="MyTracker.h" />

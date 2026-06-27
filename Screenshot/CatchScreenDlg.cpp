@@ -100,7 +100,16 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	if (!GetCaptureCursorAnchor(&cursor))
 		GetCursorPos(&cursor);
 
-	if (HasMixedMonitorScaling())
+	const AppSettings& cfg = GetAppSettings();
+	if (cfg.singleMonitorCapture)
+	{
+		if (!QueryMonitorAtPoint(cursor, &vsi))
+			QueryVirtualScreen(&vsi);
+		m_hBitmap = CaptureScreenRect(vsi);
+		if (!m_hBitmap)
+			m_hBitmap = CaptureVirtualDesktop(vsi);
+	}
+	else if (HasMixedMonitorScaling())
 	{
 		if (!QueryMonitorAtPoint(cursor, &vsi))
 			QueryVirtualScreen(&vsi);
@@ -324,7 +333,7 @@ void CCatchScreenDlg::OnPaint()
 		if (m_bFirstDraw || m_bDraw)
 		{
 			m_rectTracker.Draw(&memDC);
-			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
+			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty() && m_annotation.HasVisibleContent())
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
 			if (m_bAnnotating && !m_previewRect.IsRectEmpty())
 				DrawPreviewShape(memDC.m_hDC);
@@ -524,24 +533,30 @@ void CCatchScreenDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 
 void CCatchScreenDlg::OnRButtonDown(UINT nFlags, CPoint point)
 {
-	m_toolBar.HideBar();
-	//InvalidateRgnWindow();
+	UNREFERENCED_PARAMETER(point);
 	CDialog::OnRButtonDown(nFlags, point);
 }
 
 void CCatchScreenDlg::OnRButtonUp(UINT nFlags, CPoint point)
 {
+	UNREFERENCED_PARAMETER(point);
 	m_bLBtnDown = FALSE;
 	if (m_bFirstDraw)
 	{
-		CancelCurrentSelection();
-		InvalidateRect(NULL, FALSE);
+		CRect r = m_rectTracker.m_rect;
+		r.NormalizeRect();
+		if (!r.IsRectEmpty() && r.Width() > 4 && r.Height() > 4)
+		{
+			SyncAnnotationLayerToSelection();
+			CopySelectionToClipboard(r);
+			PositionToolBar();
+			m_toolBar.ShowBar();
+			m_bToolBarShown = TRUE;
+			InvalidateAroundRect(r);
+		}
 	}
 	else
-	{
-		//??????
 		PostQuitMessage(0);
-	}
 
 	CDialog::OnRButtonUp(nFlags, point);
 }

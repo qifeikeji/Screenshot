@@ -31,6 +31,7 @@
 #define IDC_CHECK_COPY_EXIT             1009
 #define IDC_EDIT_SAVE_DIR               1010
 #define IDC_STATIC_SAVE_DIR             1011
+#define IDC_CHECK_SINGLE_MONITOR        1014
 
 #define IDD_ANNOT_TEXT                  133
 #define IDC_EDIT_ANNOT_TEXT             1012
@@ -41,7 +42,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        147
 #define _APS_NEXT_COMMAND_VALUE         32772
-#define _APS_NEXT_CONTROL_VALUE         1013
+#define _APS_NEXT_CONTROL_VALUE         1015
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

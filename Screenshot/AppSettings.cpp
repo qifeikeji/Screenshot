@@ -20,6 +20,7 @@ void AppSettings::SetDefaults()
 	hotkeyModifiers = MOD_CONTROL | MOD_ALT;
 	hotkeyVk = (UINT)'A';
 	copyAndExitAfterSelect = FALSE;
+	singleMonitorCapture = FALSE;
 	saveDirectory.Empty();
 }
 
@@ -157,6 +158,7 @@ BOOL AppSettings::Load()
 	hotkeyModifiers = (UINT)ParseJsonInt(json, _T("hotkeyModifiers"), (int)hotkeyModifiers);
 	hotkeyVk = (UINT)ParseJsonInt(json, _T("hotkeyVk"), (int)hotkeyVk);
 	copyAndExitAfterSelect = ParseJsonBool(json, _T("copyAndExitAfterSelect"), copyAndExitAfterSelect);
+	singleMonitorCapture = ParseJsonBool(json, _T("singleMonitorCapture"), singleMonitorCapture);
 	saveDirectory = ParseJsonString(json, _T("saveDirectory"), saveDirectory);
 	Clamp();
 	return TRUE;
@@ -175,10 +177,12 @@ BOOL AppSettings::Save() const
 		_T("  \"hotkeyModifiers\": %u,\r\n")
 		_T("  \"hotkeyVk\": %u,\r\n")
 		_T("  \"copyAndExitAfterSelect\": %s,\r\n")
+		_T("  \"singleMonitorCapture\": %s,\r\n")
 		_T("  \"saveDirectory\": \"%s\"\r\n")
 		_T("}\r\n"),
 		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk,
 		temp.copyAndExitAfterSelect ? _T("true") : _T("false"),
+		temp.singleMonitorCapture ? _T("true") : _T("false"),
 		(LPCTSTR)JsonEscape(temp.saveDirectory));
 
 	try
