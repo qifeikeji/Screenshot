@@ -19,6 +19,8 @@ void AppSettings::SetDefaults()
 	windowHeight = 88;
 	maskGray = 128;
 	maskOpacity = 39;
+	launchScreenX = 0;
+	launchScreenY = 0;
 }
 
 void AppSettings::Clamp()

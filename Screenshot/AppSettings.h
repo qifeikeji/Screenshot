@@ -6,6 +6,8 @@ struct AppSettings
 	int windowHeight;
 	int maskGray;
 	int maskOpacity;
+	int launchScreenX;
+	int launchScreenY;
 
 	AppSettings();
 

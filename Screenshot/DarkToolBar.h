@@ -9,7 +9,7 @@ public:
 	virtual ~CDarkToolBar();
 
 	BOOL Create(CWnd* pParent);
-	void SetShowPlaceScreen(int screenX, int screenY);
+	void SetAlignBottomRight(int screenRight, int screenBottom);
 	void ShowBar();
 	void HideBar();
 	HWND GetHWND() const { return m_hWnd; }
@@ -29,7 +29,7 @@ private:
 	int m_hoverIndex;
 	int m_pressedIndex;
 	bool m_trackingLeave;
-	static const int kButtonCount = 9;
+	static const int kButtonCount = 5;
 	static const int kButtonSize = 28;
 	static const int kPadding = 6;
 };

@@ -51,10 +51,13 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 		return FALSE;
 
 	m_hImageList = ImageList_Create(18, 18, ILC_COLOR32, kButtonCount, 1);
+	static const UINT kIconIds[kButtonCount] = {
+		IDB_RECTANGLE, IDB_CIRCLE, IDB_BRUSH, IDB_EXIT, IDB_FINISH
+	};
 	for (int i = 0; i < kButtonCount; ++i)
 	{
 		Bitmap* pImage = NULL;
-		if (ImageFromIDResource(IDB_RECTANGLE + i, _T("PNG"), pImage) && pImage)
+		if (ImageFromIDResource(kIconIds[i], _T("PNG"), pImage) && pImage)
 		{
 			HBITMAP hb = NULL;
 			pImage->GetHBITMAP(Color(0, 0, 0, 0), &hb);
@@ -66,7 +69,7 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 	return TRUE;
 }
 
-void CDarkToolBar::SetShowPlaceScreen(int screenX, int screenY)
+void CDarkToolBar::SetAlignBottomRight(int screenRight, int screenBottom)
 {
 	if (!m_hWnd)
 		return;
@@ -76,8 +79,8 @@ void CDarkToolBar::SetShowPlaceScreen(int screenX, int screenY)
 	const int w = rc.Width();
 	const int h = rc.Height();
 
-	int x = screenX - w;
-	int y = screenY + 4;
+	int x = screenRight - w;
+	int y = screenBottom + 6;
 
 	VirtualScreenInfo vsi = {};
 	QueryVirtualScreen(&vsi);

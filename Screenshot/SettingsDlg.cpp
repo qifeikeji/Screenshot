@@ -5,8 +5,6 @@
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent)
 	: CDialog(CSettingsDlg::IDD, pParent)
-	, m_width(280)
-	, m_height(88)
 	, m_gray(128)
 	, m_opacity(39)
 {
@@ -15,12 +13,8 @@ CSettingsDlg::CSettingsDlg(CWnd* pParent)
 void CSettingsDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
-	DDX_Text(pDX, IDC_EDIT_WIN_W, m_width);
-	DDX_Text(pDX, IDC_EDIT_WIN_H, m_height);
 	DDX_Text(pDX, IDC_EDIT_MASK_GRAY, m_gray);
 	DDX_Text(pDX, IDC_EDIT_MASK_OPACITY, m_opacity);
-	DDV_MinMaxInt(pDX, m_width, 220, 800);
-	DDV_MinMaxInt(pDX, m_height, 100, 600);
 	DDV_MinMaxInt(pDX, m_gray, 0, 255);
 	DDV_MinMaxInt(pDX, m_opacity, 0, 100);
 }
@@ -33,8 +27,6 @@ END_MESSAGE_MAP()
 BOOL CSettingsDlg::OnInitDialog()
 {
 	const AppSettings& s = GetAppSettings();
-	m_width = s.windowWidth;
-	m_height = s.windowHeight;
 	m_gray = s.maskGray;
 	m_opacity = s.maskOpacity;
 	m_brBg.CreateSolidBrush(RGB(30, 30, 30));
@@ -61,8 +53,6 @@ void CSettingsDlg::OnBnClickedOk()
 	if (!UpdateData(TRUE))
 		return;
 	AppSettings& s = GetAppSettings();
-	s.windowWidth = m_width;
-	s.windowHeight = m_height;
 	s.maskGray = m_gray;
 	s.maskOpacity = m_opacity;
 	s.Clamp();

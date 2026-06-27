@@ -17,6 +17,9 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
+	afx_msg void OnDestroy();
 	DECLARE_MESSAGE_MAP()
 
 public:
@@ -29,4 +32,6 @@ private:
 	CDarkButton m_btnStart;
 	CDarkButton m_btnSettings;
 	void ApplyWindowSizeFromSettings();
+	void SaveWindowSizeToSettings();
+	void LayoutButtons(int cx, int cy);
 };

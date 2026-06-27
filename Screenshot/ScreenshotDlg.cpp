@@ -5,9 +5,6 @@
 #include "AppSettings.h"
 #include "SettingsDlg.h"
 
-#ifdef _DEBUG
-#endif
-
 CScreenshotDlg::CScreenshotDlg(CWnd* pParent)
 	: CDialog(CScreenshotDlg::IDD, pParent)
 {
@@ -26,6 +23,9 @@ BEGIN_MESSAGE_MAP(CScreenshotDlg, CDialog)
 	ON_WM_QUERYDRAGICON()
 	ON_WM_CTLCOLOR()
 	ON_WM_ERASEBKGND()
+	ON_WM_SIZE()
+	ON_WM_GETMINMAXINFO()
+	ON_WM_DESTROY()
 	ON_BN_CLICKED(IDC_BTN_START, &CScreenshotDlg::OnBnClickedBtnStart)
 	ON_BN_CLICKED(IDC_BTN_SETTINGS, &CScreenshotDlg::OnBnClickedBtnSettings)
 END_MESSAGE_MAP()
@@ -35,6 +35,36 @@ void CScreenshotDlg::ApplyWindowSizeFromSettings()
 	const AppSettings& s = GetAppSettings();
 	SetWindowPos(NULL, 0, 0, s.windowWidth, s.windowHeight, SWP_NOMOVE | SWP_NOZORDER);
 	CenterWindow();
+	CRect rc;
+	GetClientRect(&rc);
+	LayoutButtons(rc.Width(), rc.Height());
+}
+
+void CScreenshotDlg::SaveWindowSizeToSettings()
+{
+	CRect wr;
+	GetWindowRect(&wr);
+	AppSettings& s = GetAppSettings();
+	s.windowWidth = wr.Width();
+	s.windowHeight = wr.Height();
+	s.Clamp();
+	s.Save();
+}
+
+void CScreenshotDlg::LayoutButtons(int cx, int cy)
+{
+	const int btnW = 100;
+	const int btnH = 28;
+	const int gap = 16;
+	const int totalW = btnW * 2 + gap;
+	const int x0 = (cx - totalW) / 2;
+	const int y0 = (cy - btnH) / 2;
+	const int x = x0 >= 8 ? x0 : 8;
+	const int y = y0 >= 8 ? y0 : 8;
+	if (m_btnStart.GetSafeHwnd())
+		m_btnStart.SetWindowPos(NULL, x, y, btnW, btnH, SWP_NOZORDER);
+	if (m_btnSettings.GetSafeHwnd())
+		m_btnSettings.SetWindowPos(NULL, x + btnW + gap, y, btnW, btnH, SWP_NOZORDER);
 }
 
 BOOL CScreenshotDlg::OnInitDialog()
@@ -48,6 +78,26 @@ BOOL CScreenshotDlg::OnInitDialog()
 	m_btnSettings.SetAccent(false);
 	ApplyWindowSizeFromSettings();
 	return TRUE;
+}
+
+void CScreenshotDlg::OnSize(UINT nType, int cx, int cy)
+{
+	CDialog::OnSize(nType, cx, cy);
+	if (nType != SIZE_MINIMIZED && cx > 0 && cy > 0)
+		LayoutButtons(cx, cy);
+}
+
+void CScreenshotDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
+{
+	lpMMI->ptMinTrackSize.x = 220;
+	lpMMI->ptMinTrackSize.y = 72;
+	CDialog::OnGetMinMaxInfo(lpMMI);
+}
+
+void CScreenshotDlg::OnDestroy()
+{
+	SaveWindowSizeToSettings();
+	CDialog::OnDestroy();
 }
 
 void CScreenshotDlg::OnPaint()
@@ -106,6 +156,13 @@ UINT SccreenShot_Thread(LPVOID lpParam)
 
 void CScreenshotDlg::OnBnClickedBtnStart()
 {
+	CRect wr;
+	GetWindowRect(&wr);
+	AppSettings& s = GetAppSettings();
+	s.launchScreenX = wr.left;
+	s.launchScreenY = wr.top;
+	s.Save();
+
 	::ShowWindow(m_hWnd, SW_HIDE);
 	AfxBeginThread(SccreenShot_Thread, (LPVOID)GetSafeHwnd());
 }
@@ -113,6 +170,5 @@ void CScreenshotDlg::OnBnClickedBtnStart()
 void CScreenshotDlg::OnBnClickedBtnSettings()
 {
 	CSettingsDlg dlg(this);
-	if (dlg.DoModal() == IDOK)
-		ApplyWindowSizeFromSettings();
+	dlg.DoModal();
 }

@@ -117,20 +117,24 @@ void FillDimRect(Gdiplus::Graphics& g, const CRect& rc, BYTE gray, BYTE alpha)
 		(Gdiplus::REAL)rc.Width(), (Gdiplus::REAL)rc.Height());
 }
 
-void PaintDimOutsideSelection(CDC& memDC, CDC& srcDC, const CRect& client, const CRect& selection)
+void PaintDimOutsideSelection(CDC& memDC, CDC& srcDC, const CRect& client,
+	const CRect& maskRegion, const CRect& selection)
 {
+	if (maskRegion.IsRectEmpty())
+		return;
+
 	const AppSettings& cfg = GetAppSettings();
 	const BYTE gray = (BYTE)cfg.maskGray;
 	const BYTE alpha = (BYTE)((cfg.maskOpacity * 255) / 100);
 
 	Gdiplus::Graphics g(memDC.m_hDC);
 	Gdiplus::SolidBrush dimBrush(Gdiplus::Color(alpha, gray, gray, gray));
-	g.FillRectangle(&dimBrush, 0.f, 0.f, (Gdiplus::REAL)client.Width(), (Gdiplus::REAL)client.Height());
+	g.FillRectangle(&dimBrush, (Gdiplus::REAL)maskRegion.left, (Gdiplus::REAL)maskRegion.top,
+		(Gdiplus::REAL)maskRegion.Width(), (Gdiplus::REAL)maskRegion.Height());
 
 	CRect sel = selection;
 	sel.NormalizeRect();
-	CRect clip = client;
-	sel.IntersectRect(&sel, &clip);
+	sel.IntersectRect(&sel, &maskRegion);
 	if (!sel.IsRectEmpty())
 	{
 		memDC.BitBlt(sel.left, sel.top, sel.Width(), sel.Height(),
@@ -158,13 +162,50 @@ void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 /////////////////////////////////////////////////////////////////////////////
 // CCatchScreenDlg message handlers
 
+namespace {
+const int kMaskRegionWidth = 10000;
+const int kMaskRegionHeight = 3000;
+} // namespace
+
+CRect CCatchScreenDlg::GetMaskClientRect() const
+{
+	const AppSettings& s = GetAppSettings();
+	CRect mask(
+		s.launchScreenX - m_nOriginX,
+		s.launchScreenY - m_nOriginY,
+		s.launchScreenX - m_nOriginX + kMaskRegionWidth,
+		s.launchScreenY - m_nOriginY + kMaskRegionHeight);
+	CRect client(0, 0, m_nScreenWidth, m_nScreenHeight);
+	mask.IntersectRect(&mask, &client);
+	return mask;
+}
+
+void CCatchScreenDlg::CancelCurrentSelection()
+{
+	m_bFirstDraw = FALSE;
+	m_bDraw = FALSE;
+	m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
+	ClearAnnotationLayer();
+	m_toolBar.HideBar();
+}
+
+void CCatchScreenDlg::BeginSelectionAt(CPoint point)
+{
+	CancelCurrentSelection();
+	m_startPt = point;
+	m_bDraw = TRUE;
+	m_bFirstDraw = TRUE;
+	m_rectTracker.m_rect.SetRect(point.x, point.y, point.x + 4, point.y + 4);
+	InvalidateAroundRect(m_rectTracker.m_rect);
+}
+
 void CCatchScreenDlg::PositionToolBar()
 {
 	CRect r = m_rectTracker.m_rect;
 	r.NormalizeRect();
 	CPoint pt(r.right, r.bottom);
 	ClientToScreen(&pt);
-	m_toolBar.SetShowPlaceScreen(pt.x, pt.y);
+	m_toolBar.SetAlignBottomRight(pt.x, pt.y);
 }
 
 BOOL CCatchScreenDlg::OnInitDialog()
@@ -179,7 +220,7 @@ BOOL CCatchScreenDlg::OnInitDialog()
 	m_tipEdit.ShowWindow(SW_HIDE);
 
 	m_toolBar.Create(this);
-	PositionToolBar();
+	m_toolBar.HideBar();
 
 	((CScreenshotApp *)AfxGetApp())->m_hwndDlg = m_hWnd;
 	return TRUE;
@@ -191,11 +232,7 @@ BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 	{
 		if (m_bFirstDraw)
 		{
-			m_bFirstDraw = FALSE;
-			m_bDraw = FALSE;
-			m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
-			ClearAnnotationLayer();
-			m_toolBar.HideBar();
+			CancelCurrentSelection();
 			InvalidateRect(NULL, FALSE);
 		}
 		else
@@ -255,7 +292,8 @@ void CCatchScreenDlg::OnPaint()
 
 		if (m_bFirstDraw)
 		{
-			PaintDimOutsideSelection(memDC, srcDC, client, m_rectTracker.m_rect);
+			const CRect mask = GetMaskClientRect();
+			PaintDimOutsideSelection(memDC, srcDC, client, mask, m_rectTracker.m_rect);
 			m_rectTracker.Draw(&memDC);
 			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
@@ -270,11 +308,7 @@ void CCatchScreenDlg::OnCancel()
 {
 	if (m_bFirstDraw)
 	{
-		//??????????????
-		m_bFirstDraw = FALSE;
-		m_bDraw = FALSE;
-		m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
-		ClearAnnotationLayer();
+		CancelCurrentSelection();
 		InvalidateRect(NULL, FALSE);
 	}
 	else
@@ -309,16 +343,8 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	//???????????
 	if (nHitTest < 0)
 	{
-		if (!m_bFirstDraw)
-		{
-			//???????????
-			m_startPt = point;
-			m_bDraw = TRUE;
-			m_bFirstDraw = TRUE;
-			//????????????????????????
-			m_rectTracker.m_rect.SetRect(point.x, point.y, point.x + 4, point.y + 4);
-			InvalidateAroundRect(m_rectTracker.m_rect);
-		}
+		if (!m_bDraw)
+			BeginSelectionAt(point);
 	}
 	else
 	{
@@ -336,9 +362,19 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 
 void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	const BOOL wasDrawing = m_bDraw;
 	m_bLBtnDown = FALSE;
 	m_bDraw = FALSE;
-	PositionToolBar();
+	if (wasDrawing && m_bFirstDraw)
+	{
+		const int dx = abs(point.x - m_startPt.x);
+		const int dy = abs(point.y - m_startPt.y);
+		if (dx > 4 || dy > 4)
+		{
+			PositionToolBar();
+			m_toolBar.ShowBar();
+		}
+	}
 	SyncAnnotationLayerToSelection();
 	InvalidateAroundRect(m_rectTracker.m_rect);
 	CDialog::OnLButtonUp(nFlags, point);
@@ -624,30 +660,14 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		switch(wmId)
 		{
 		case DarkToolBar_CommandBase:
-			AfxMessageBox(_T("????"));
+		case DarkToolBar_CommandBase + 1:
+		case DarkToolBar_CommandBase + 2:
 			break;
-		case DarkToolBar_CommandBase+1:
-			AfxMessageBox(_T("???"));
+		case DarkToolBar_CommandBase + 3:
+			CancelCurrentSelection();
+			InvalidateRect(NULL, FALSE);
 			break;
-		case DarkToolBar_CommandBase +2:
-			AfxMessageBox(_T("????"));
-			break;
-		case DarkToolBar_CommandBase +3:
-			AfxMessageBox(_T("??????"));
-			break;
-		case DarkToolBar_CommandBase +4:
-			AfxMessageBox(_T("????"));
-			break;
-		case DarkToolBar_CommandBase +5:
-			AfxMessageBox(_T("????"));
-			break;
-		case DarkToolBar_CommandBase +6:
-			SaveSelectionToFile(m_rectTracker.m_rect);
-			break;
-		case DarkToolBar_CommandBase +7:
-			PostQuitMessage(0);
-			break;
-		case DarkToolBar_CommandBase +8:
+		case DarkToolBar_CommandBase + 4:
 			if (CopySelectionToClipboard(m_rectTracker.m_rect))
 				PostQuitMessage(0);
 			break;

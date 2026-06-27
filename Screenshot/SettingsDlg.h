@@ -18,8 +18,6 @@ protected:
 
 private:
 	CBrush m_brBg;
-	int m_width;
-	int m_height;
 	int m_gray;
 	int m_opacity;
 };
