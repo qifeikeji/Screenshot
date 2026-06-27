@@ -309,8 +309,10 @@ BOOL CMyTracker::SetCursor(CWnd* pWnd, UINT nHitTest) const
 			nHandle = (TrackerHit)9;
 	}
 
-	//ASSERT(nHandle < _countof(_afxCursors));
-	::SetCursor(_afxCursors[nHandle]);
+	HCURSOR hCursor = _afxCursors[nHandle];
+	if (hCursor == NULL)
+		hCursor = ::LoadCursor(NULL, IDC_ARROW);
+	::SetCursor(hCursor);
 	return TRUE;
 }
 

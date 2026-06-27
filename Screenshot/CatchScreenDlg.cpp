@@ -581,15 +581,25 @@ BOOL CCatchScreenDlg::OnEraseBkgnd(CDC* pDC)
 
 BOOL CCatchScreenDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
-	//????????????????????
-	if (pWnd == this && m_rectTracker.SetCursor(this, nHitTest)
-		&& !m_bDraw && m_bFirstDraw && m_activeTool == AnnotToolNone)
+	HCURSOR hArrow = m_hCursor ? m_hCursor : ::LoadCursor(NULL, IDC_ARROW);
+
+	if (pWnd == this && nHitTest == HTCLIENT && !m_bDraw && m_bFirstDraw && m_activeTool == AnnotToolNone)
 	{
-		return TRUE;
+		CPoint point;
+		::GetCursorPos(&point);
+		ScreenToClient(&point);
+		CRect sel = m_rectTracker.m_rect;
+		sel.NormalizeRect();
+		if (!sel.IsRectEmpty() && sel.PtInRect(point))
+		{
+			::SetCursor(hArrow);
+			return TRUE;
+		}
+		if (m_rectTracker.SetCursor(this, nHitTest))
+			return TRUE;
 	}
 
-	//??????????
-	SetCursor(m_hCursor);
+	::SetCursor(hArrow);
 	return TRUE;
 }
 

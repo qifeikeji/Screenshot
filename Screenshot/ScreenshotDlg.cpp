@@ -55,8 +55,8 @@ void CScreenshotDlg::SaveWindowSizeToSettings()
 
 void CScreenshotDlg::LayoutButtons(int cx, int cy)
 {
-	const int btnW = 100;
-	const int btnH = 28;
+	const int btnW = 96;
+	const int btnH = 26;
 	const int gap = 16;
 	const int totalW = btnW * 2 + gap;
 	const int x0 = (cx - totalW) / 2;

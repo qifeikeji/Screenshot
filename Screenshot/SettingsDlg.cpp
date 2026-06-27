@@ -47,8 +47,8 @@ BOOL CSettingsDlg::OnInitDialog()
 	if (CWnd* pHot = GetDlgItem(IDC_HOTKEY_SCREENSHOT))
 		pHot->SendMessage(HKM_SETHOTKEY, hk, 0);
 
-	m_hotKeyHost.Create(this, CRect(92, 12, 280, 40), IDC_HOTKEY_SCREENSHOT);
-	m_saveDirHost.Create(this, CRect(92, 46, 280, 74), IDC_EDIT_SAVE_DIR);
+	m_hotKeyHost.Create(this, CRect(16, 28, 284, 56), IDC_HOTKEY_SCREENSHOT);
+	m_saveDirHost.Create(this, CRect(16, 76, 284, 104), IDC_EDIT_SAVE_DIR);
 
 	m_checkCopyExit.SubclassDlgItem(IDC_CHECK_COPY_EXIT, this);
 	m_checkSingleMonitor.SubclassDlgItem(IDC_CHECK_SINGLE_MONITOR, this);

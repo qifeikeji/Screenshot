@@ -48,11 +48,14 @@ void CDarkMacInputHost::OnPaint()
 	GetClientRect(&rc);
 	if (rc.IsRectEmpty())
 		return;
+	rc.DeflateRect(1, 1, 3, 3);
+	if (rc.Width() < 4 || rc.Height() < 4)
+		return;
 
 	Graphics g(dc.m_hDC);
 	g.SetSmoothingMode(SmoothingModeAntiAlias);
 	GraphicsPath path;
-	const REAL r = 8.f;
+	const REAL r = min(8.f, (REAL)min(rc.Width(), rc.Height()) / 2.f);
 	path.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
 	path.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
 	path.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
@@ -72,11 +75,17 @@ BOOL CDarkMacInputHost::OnEraseBkgnd(CDC* pDC)
 
 HBRUSH CDarkMacInputHost::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
-	if (nCtlColor == CTLCOLOR_EDIT || nCtlColor == CTLCOLOR_STATIC)
+	pDC->SetTextColor(RGB(240, 240, 242));
+	if (nCtlColor == CTLCOLOR_STATIC)
 	{
-		pDC->SetBkColor(RGB(45, 45, 48));
-		pDC->SetTextColor(RGB(240, 240, 242));
-		return (HBRUSH)m_brInner.GetSafeHandle();
+		pDC->SetBkMode(TRANSPARENT);
+		return (HBRUSH)::GetStockObject(HOLLOW_BRUSH);
 	}
+	if (nCtlColor == CTLCOLOR_EDIT)
+	{
+		pDC->SetBkMode(TRANSPARENT);
+		return (HBRUSH)::GetStockObject(HOLLOW_BRUSH);
+	}
+	pDC->SetBkColor(RGB(45, 45, 48));
 	return (HBRUSH)m_brInner.GetSafeHandle();
 }

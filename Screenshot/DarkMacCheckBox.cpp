@@ -9,23 +9,35 @@ CDarkMacCheckBox::CDarkMacCheckBox()
 
 void CDarkMacCheckBox::PreSubclassWindow()
 {
-	ModifyStyle(0, BS_OWNERDRAW);
+	ModifyStyle(BS_AUTOCHECKBOX | BS_AUTO3STATE, BS_OWNERDRAW);
 	CButton::PreSubclassWindow();
 }
 
 BEGIN_MESSAGE_MAP(CDarkMacCheckBox, CButton)
+	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
 END_MESSAGE_MAP()
 
+void CDarkMacCheckBox::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	CButton::OnLButtonDown(nFlags, point);
+}
+
 void CDarkMacCheckBox::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	const HWND hCapture = ::GetCapture();
+	CButton::OnLButtonUp(nFlags, point);
+	if (hCapture != m_hWnd)
+		return;
+
 	CRect rc;
 	GetClientRect(&rc);
-	if (rc.PtInRect(point))
-	{
-		SetCheck(GetCheck() == BST_CHECKED ? BST_UNCHECKED : BST_CHECKED);
-		Invalidate();
-	}
+	if (!rc.PtInRect(point))
+		return;
+
+	const int next = (GetCheck() == BST_CHECKED) ? BST_UNCHECKED : BST_CHECKED;
+	SetCheck(next);
+	Invalidate(FALSE);
 }
 
 void CDarkMacCheckBox::DrawItem(LPDRAWITEMSTRUCT lp)

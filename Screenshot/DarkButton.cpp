@@ -93,6 +93,11 @@ BOOL CDarkButton::OnEraseBkgnd(CDC* pDC)
 
 void CDarkButton::DrawButton(CDC& dc, const CRect& rc, bool hover, bool pressed)
 {
+	CRect drawRc = rc;
+	drawRc.DeflateRect(1, 1, 3, 3);
+	if (drawRc.Width() < 4 || drawRc.Height() < 4)
+		drawRc = rc;
+
 	Graphics g(dc.m_hDC);
 	g.SetSmoothingMode(SmoothingModeAntiAlias);
 
@@ -110,11 +115,11 @@ void CDarkButton::DrawButton(CDC& dc, const CRect& rc, bool hover, bool pressed)
 		fill = m_accent ? Color(255, 38, 148, 255) : Color(255, 72, 72, 74);
 
 	GraphicsPath path;
-	const REAL r = (REAL)radius;
-	path.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
-	path.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
-	path.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
-	path.AddArc((REAL)rc.left, (REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
+	const REAL r = (REAL)min(radius, min(drawRc.Width(), drawRc.Height()) / 2);
+	path.AddArc((REAL)drawRc.left, (REAL)drawRc.top, r * 2, r * 2, 180, 90);
+	path.AddArc((REAL)drawRc.right - r * 2, (REAL)drawRc.top, r * 2, r * 2, 270, 90);
+	path.AddArc((REAL)drawRc.right - r * 2, (REAL)drawRc.bottom - r * 2, r * 2, r * 2, 0, 90);
+	path.AddArc((REAL)drawRc.left, (REAL)drawRc.bottom - r * 2, r * 2, r * 2, 90, 90);
 	path.CloseFigure();
 
 	SolidBrush brush(fill);
@@ -130,6 +135,6 @@ void CDarkButton::DrawButton(CDC& dc, const CRect& rc, bool hover, bool pressed)
 	StringFormat fmt;
 	fmt.SetAlignment(StringAlignmentCenter);
 	fmt.SetLineAlignment(StringAlignmentCenter);
-	RectF layout((REAL)rc.left, (REAL)rc.top, (REAL)rc.Width(), (REAL)rc.Height());
+	RectF layout((REAL)drawRc.left, (REAL)drawRc.top, (REAL)drawRc.Width(), (REAL)drawRc.Height());
 	g.DrawString(text, -1, &font, layout, &fmt, &textBrush);
 }
