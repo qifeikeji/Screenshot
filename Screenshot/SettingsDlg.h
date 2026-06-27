@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Resource.h"
+
 class CSettingsDlg : public CDialog
 {
 public:

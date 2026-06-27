@@ -415,7 +415,7 @@ void CMyTracker::DrawTrackerRect(
 */
 	//此函数是画调整大小和位置时画虚线
 	//由于本程序不需要,如果要正常使作的话把上面注示去掉就行了!
-	((CCatchScreenDlg *)pWnd)->InvalidateRgnWindow();
+	((CCatchScreenDlg *)pWnd)->InvalidateAroundRect(((CCatchScreenDlg *)pWnd)->m_rectTracker.m_rect);
     
 }
 

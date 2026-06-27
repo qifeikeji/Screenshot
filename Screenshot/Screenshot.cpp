@@ -138,7 +138,7 @@ BOOL CScreenshotApp::ProcessMessageFilter(int code, LPMSG lpMsg)
 
 						rect.bottom-=1;
 						pDlg->m_rectTracker.m_rect = rect;
-						pDlg->InvalidateRgnWindow();
+						pDlg->InvalidateAroundRect(rect);
 						break;
 
 					case VK_DOWN:
@@ -147,7 +147,7 @@ BOOL CScreenshotApp::ProcessMessageFilter(int code, LPMSG lpMsg)
 							rect.bottom+=1;
 
 						pDlg->m_rectTracker.m_rect=rect;
-						pDlg->InvalidateRgnWindow();
+						pDlg->InvalidateAroundRect(rect);
 						break;
 
 					case VK_LEFT:
@@ -156,7 +156,7 @@ BOOL CScreenshotApp::ProcessMessageFilter(int code, LPMSG lpMsg)
 						rect.right-=1;
 
 						pDlg->m_rectTracker.m_rect=rect;
-						pDlg->InvalidateRgnWindow();
+						pDlg->InvalidateAroundRect(rect);
 						break;
 
 					case VK_RIGHT:
@@ -165,7 +165,7 @@ BOOL CScreenshotApp::ProcessMessageFilter(int code, LPMSG lpMsg)
 							rect.right+=1;
 
 						pDlg->m_rectTracker.m_rect=rect;
-						pDlg->InvalidateRgnWindow();
+						pDlg->InvalidateAroundRect(rect);
 						break;
 					}
 				}

@@ -24,7 +24,6 @@ protected:
 
 private:
 	int HitTest(CPoint pt) const;
-	void DrawButton(Gdiplus::Graphics& g, const CRect& rc, int index, bool hover, bool pressed);
 
 	HIMAGELIST m_hImageList;
 	int m_hoverIndex;

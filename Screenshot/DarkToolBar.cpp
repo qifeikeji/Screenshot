@@ -107,38 +107,44 @@ int CDarkToolBar::HitTest(CPoint pt) const
 	return -1;
 }
 
-void CDarkToolBar::DrawButton(Graphics& g, const CRect& rc, int index, bool hover, bool pressed)
+namespace {
+
+void DrawToolButton(Gdiplus::Graphics& g, HIMAGELIST imageList, const CRect& rc, int index, bool hover, bool pressed)
 {
- GraphicsPath path;
- const REAL r = 7.f;
- path.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
- path.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
- path.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
- path.AddArc((REAL)rc.left, (REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
- path.CloseFigure();
+	Gdiplus::GraphicsPath path;
+	const Gdiplus::REAL r = 7.f;
+	path.AddArc((Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.top, r * 2, r * 2, 180, 90);
+	path.AddArc((Gdiplus::REAL)rc.right - r * 2, (Gdiplus::REAL)rc.top, r * 2, r * 2, 270, 90);
+	path.AddArc((Gdiplus::REAL)rc.right - r * 2, (Gdiplus::REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
+	path.AddArc((Gdiplus::REAL)rc.left, (Gdiplus::REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
+	path.CloseFigure();
 
- Color fill(220, 44, 44, 46);
- if (pressed)
-  fill = Color(240, 28, 28, 30);
- else if (hover)
-  fill = Color(240, 72, 72, 74);
- SolidBrush brush(fill);
- Pen pen(Color(180, 90, 90, 92), 1.f);
- g.FillPath(&brush, &path);
- g.DrawPath(&pen, &path);
+	Gdiplus::Color fill(220, 44, 44, 46);
+	if (pressed)
+		fill = Gdiplus::Color(240, 28, 28, 30);
+	else if (hover)
+		fill = Gdiplus::Color(240, 72, 72, 74);
+	Gdiplus::SolidBrush brush(fill);
+	Gdiplus::Pen pen(Gdiplus::Color(180, 90, 90, 92), 1.f);
+	g.FillPath(&brush, &path);
+	g.DrawPath(&pen, &path);
 
- if (m_hImageList && index >= 0)
- {
-  HICON hIcon = ImageList_GetIcon(m_hImageList, index, ILD_TRANSPARENT);
-  if (hIcon)
-  {
-   const int ix = rc.left + (rc.Width() - 18) / 2;
-   const int iy = rc.top + (rc.Height() - 18) / 2;
-   g.DrawIcon(hIcon, ix, iy);
-   DestroyIcon(hIcon);
-  }
- }
+	if (imageList && index >= 0)
+	{
+		HICON hIcon = ImageList_GetIcon(imageList, index, ILD_TRANSPARENT);
+		if (hIcon)
+		{
+			HDC hdc = g.GetHDC();
+			const int ix = rc.left + (rc.Width() - 18) / 2;
+			const int iy = rc.top + (rc.Height() - 18) / 2;
+			::DrawIconEx(hdc, ix, iy, hIcon, 18, 18, 0, NULL, DI_NORMAL);
+			g.ReleaseHDC(hdc);
+			DestroyIcon(hIcon);
+		}
+	}
 }
+
+} // namespace
 
 BEGIN_MESSAGE_MAP(CDarkToolBar, CWnd)
  ON_WM_PAINT()
@@ -171,7 +177,7 @@ void CDarkToolBar::OnPaint()
  for (int i = 0; i < kButtonCount; ++i)
  {
   CRect btn(x, kPadding, x + kButtonSize, kPadding + kButtonSize);
-  DrawButton(g, btn, i, i == m_hoverIndex, i == m_pressedIndex);
+  DrawToolButton(g, m_hImageList, btn, i, i == m_hoverIndex, i == m_pressedIndex);
   x += kButtonSize + 4;
  }
 }
