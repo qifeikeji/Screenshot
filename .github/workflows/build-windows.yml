@@ -2,6 +2,10 @@
 name: Build Windows
 
 on:
+  push:
+    branches:
+      - '**'
+  pull_request:
   workflow_dispatch:
     inputs:
       platform:
@@ -21,6 +25,10 @@ on:
           - Release
           - Debug
 
+env:
+  BUILD_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.platform || 'x64' }}
+  BUILD_CONFIGURATION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.configuration || 'Release' }}
+
 jobs:
   build:
     runs-on: windows-2022
@@ -33,7 +41,7 @@ jobs:
       - name: Setup MSVC (MFC)
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: ${{ inputs.platform == 'x64' && 'x64' || 'x86' }}
+          arch: ${{ env.BUILD_PLATFORM == 'x64' && 'x64' || 'x86' }}
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -41,8 +49,9 @@ jobs:
       - name: Build solution
         shell: pwsh
         run: |
-          $platform = '${{ inputs.platform }}'
-          $config = '${{ inputs.configuration }}'
+          $platform = $env:BUILD_PLATFORM
+          $config = $env:BUILD_CONFIGURATION
+          Write-Host "Building $config | $platform"
           msbuild Screenshot.sln `
             /t:Rebuild `
             /p:Configuration=$config `
@@ -51,10 +60,10 @@ jobs:
             /verbosity:minimal
 
       - name: Verify Release binary
-        if: inputs.configuration == 'Release'
+        if: env.BUILD_CONFIGURATION == 'Release'
         shell: pwsh
         run: |
-          $platform = '${{ inputs.platform }}'
+          $platform = $env:BUILD_PLATFORM
           $exe = Join-Path $PWD "$platform\Release\Screenshot.exe"
           if (-not (Test-Path $exe)) { throw "Missing $exe" }
           $size = (Get-Item $exe).Length
@@ -70,8 +79,8 @@ jobs:
       - name: Collect output
         shell: pwsh
         run: |
-          $platform = '${{ inputs.platform }}'
-          $config = '${{ inputs.configuration }}'
+          $platform = $env:BUILD_PLATFORM
+          $config = $env:BUILD_CONFIGURATION
           $outDir = Join-Path $PWD "$platform\$config"
           if (-not (Test-Path $outDir)) {
             throw "Output directory not found: $outDir"
@@ -104,7 +113,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Screenshot-${{ inputs.platform }}-${{ inputs.configuration }}
+          name: Screenshot-${{ env.BUILD_PLATFORM }}-${{ env.BUILD_CONFIGURATION }}-${{ github.run_number }}
           path: artifact/
           if-no-files-found: error
           retention-days: 30
