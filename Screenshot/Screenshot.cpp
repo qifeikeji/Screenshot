@@ -48,9 +48,16 @@ CScreenshotApp theApp;
 
 BOOL CScreenshotApp::InitInstance()
 {
-	// 如果一个运行在 Windows XP 上的应用程序清单指定要
-	// 使用 ComCtl32.dll 版本 6 或更高版本来启用可视化方式，
-	//则需要 InitCommonControlsEx()。否则，将无法创建窗口。
+	// Per-monitor DPI（与 app.manifest 配合；旧系统上 API 可能不存在）
+	HMODULE hUser32 = GetModuleHandle(_T("user32.dll"));
+	if (hUser32)
+	{
+		typedef BOOL(WINAPI* SetDpiCtxFn)(DPI_AWARENESS_CONTEXT);
+		SetDpiCtxFn pfn = (SetDpiCtxFn)GetProcAddress(hUser32, "SetProcessDpiAwarenessContext");
+		if (pfn)
+			pfn(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+	}
+
 	INITCOMMONCONTROLSEX InitCtrls;
 	InitCtrls.dwSize = sizeof(InitCtrls);
 	// 将它设置为包括所有要在应用程序中使用的

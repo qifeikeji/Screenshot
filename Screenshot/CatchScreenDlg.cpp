@@ -15,6 +15,34 @@
 #include <GdiPlus.h>
 using namespace  Gdiplus;
 
+namespace {
+
+int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+{
+	UINT num = 0;
+	UINT size = 0;
+	GetImageEncodersSize(&num, &size);
+	if (size == 0)
+		return -1;
+	ImageCodecInfo* pInfo = (ImageCodecInfo*)malloc(size);
+	if (!pInfo)
+		return -1;
+	GetImageEncoders(num, size, pInfo);
+	for (UINT i = 0; i < num; ++i)
+	{
+		if (wcscmp(pInfo[i].MimeType, format) == 0)
+		{
+			*pClsid = pInfo[i].Clsid;
+			free(pInfo);
+			return (int)i;
+		}
+	}
+	free(pInfo);
+	return -1;
+}
+
+} // namespace
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #undef THIS_FILE
@@ -27,10 +55,10 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 : CDialog(CCatchScreenDlg::IDD, pParent)
 {
 	m_bLBtnDown = FALSE;
-	//初始化像皮筋类,新增的resizeMiddle 类型
+	//????????????,??????resizeMiddle ????
 	m_rectTracker.m_nStyle = CMyTracker::resizeMiddle | CMyTracker::solidLine;
 	m_rectTracker.m_rect.SetRect(-1, -2, -3, -4);
-	//设置矩形颜色
+	//??????????
 	m_rectTracker.SetRectColor(RGB(10, 100, 130));
 
 	m_hCursor = AfxGetApp()->LoadCursor(IDC_CURSOR1);
@@ -41,16 +69,17 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_bNeedShowMsg = FALSE;
 	m_startPt = 0;
 
-	//获取屏幕分辩率
-	m_xScreen = GetSystemMetrics(SM_CXSCREEN);
-	m_yScreen = GetSystemMetrics(SM_CYSCREEN);
+	m_nOriginX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+	m_nOriginY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+	m_nScreenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	m_nScreenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
-	//截取屏幕到位图中
-	CRect rect(0, 0, m_xScreen, m_yScreen);
+	CRect rect(0, 0, m_nScreenWidth, m_nScreenHeight);
 	m_hBitmap = CopyScreenToBitmap(&rect);
 	m_pBitmap = CBitmap::FromHandle(m_hBitmap);
 
-	//初始化刷新窗口区域 m_rgn
+	m_annotationRect.SetRectEmpty();
+	//??????????????? m_rgn
 	m_rgn.CreateRectRgn(0, 0, 50, 50);
 }
 
@@ -79,10 +108,10 @@ END_MESSAGE_MAP()
 BOOL CCatchScreenDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-	//把对化框设置成全屏顶层窗口
-	SetWindowPos(&wndTopMost, 0, 0, m_xScreen, m_yScreen, SWP_SHOWWINDOW);
+	//?????????????????????
+	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, m_nScreenWidth, m_nScreenHeight, SWP_SHOWWINDOW);
 
-	//移动操作提示窗口
+	//??????????????
 	CRect rect;
 	m_tipEdit.GetWindowRect(&rect);
 	m_tipEdit.MoveWindow(10, 10, rect.Width(), rect.Height());
@@ -102,7 +131,7 @@ BOOL CCatchScreenDlg::OnInitDialog()
  
 void CCatchScreenDlg::OnPaint()
 {
-	// 如果窗口是最小化状态
+	// ?????????????????
 	if (IsIconic())
 	{
 		CPaintDC dc(this);
@@ -117,7 +146,7 @@ void CCatchScreenDlg::OnPaint()
 		int y = (rect.Height() - cyIcon + 1) / 2;
 
 	}
-	else  // 如果窗口正常显示
+	else  // ??????????????
 	{
 		CPaintDC dc(this);
 
@@ -132,18 +161,24 @@ void CCatchScreenDlg::OnPaint()
 		HBRUSH s_hBitmapBrush = CreatePatternBrush(m_hBitmap); 
 		::FillRect(dcCompatible.m_hDC,&rect,s_hBitmapBrush);
 
-		//显示截取矩形大小信息
+		//?????????????????
 		if (m_bNeedShowMsg && m_bFirstDraw)
 		{
 			CRect rect = m_rectTracker.m_rect;
 			DrawMessage(rect, &dcCompatible);
 		}
 
-		//画出像皮筋矩形
+		//????????????
 		if (m_bFirstDraw)
 		{
 			m_rectTracker.Draw(&dcCompatible);
 		}
+
+		if (m_bFirstDraw && m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
+		{
+			m_annotation.DrawOn(dcCompatible.m_hDC, m_annotationRect.left, m_annotationRect.top);
+		}
+
 		Gdiplus::Graphics graphics(dcCompatible);
 
 		HRGN hgn1 = CreateRectRgn(m_rectTracker.m_rect.left,m_rectTracker.m_rect.top,
@@ -174,10 +209,11 @@ void CCatchScreenDlg::OnCancel()
 {
 	if (m_bFirstDraw)
 	{
-		//取消已画矩形变量
+		//??????????????
 		m_bFirstDraw = FALSE;
 		m_bDraw = FALSE;
 		m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
+		ClearAnnotationLayer();
 		InvalidateRgnWindow();
 	}
 	else
@@ -194,12 +230,12 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 		m_toolBar.ShowToolBar();
 	if (m_bDraw)
 	{
-		//动态调整矩形大小,并刷新画出
+		//???????????????,????????
 		m_rectTracker.m_rect.SetRect(m_startPt.x + 4, m_startPt.y + 4, point.x, point.y);
 		InvalidateRgnWindow();
 	}
 	
-	//弥补调整大小和位置时,接收不到MouseMove消息
+	//??????????????????,???????MouseMove???
 	CRect rect;
 	m_tipEdit.GetWindowRect(&rect);
 	if (rect.PtInRect(point))
@@ -216,19 +252,19 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	m_bLBtnDown = TRUE;
 	int nHitTest;
 	nHitTest = m_rectTracker.HitTest(point);
-	//判断击中位置
+	//???????????
 	if (nHitTest < 0)
 	{
 		if (!m_bFirstDraw)
 		{
-			//第一次画矩形
+			//???????????
 			m_startPt = point;
 			m_bDraw = TRUE;
 			m_bFirstDraw = TRUE;
-			//设置当鼠标按下时最小的矩形大小
+			//????????????????????????
 			m_rectTracker.m_rect.SetRect(point.x, point.y, point.x + 4, point.y + 4);
 
-			//保证当鼠标当下时立刻显示信息
+			//?????????????????????
 			if (m_bFirstDraw)
 				m_bNeedShowMsg = TRUE;
 			UpdateTipString();
@@ -238,12 +274,13 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	}
 	else
 	{
-		//保证当鼠标当下时立刻显示信息
+		//?????????????????????
 		m_bNeedShowMsg = TRUE;
 		if (m_bFirstDraw)
 		{
-			//调束大小时,Track会自动调整矩形大小,在些期间,消息归CRectTracker内部处理
+			//?????????,Track?????????????????,???????,?????CRectTracker???????
 			m_rectTracker.Track(this, point, TRUE);
+			SyncAnnotationLayerToSelection();
 			InvalidateRgnWindow();
 		}
 	}
@@ -259,6 +296,7 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	UpdateTipString();
 	SetEidtWndText();
 	m_toolBar.SetShowPlace(m_rectTracker.m_rect.right,m_rectTracker.m_rect.bottom);
+	SyncAnnotationLayerToSelection();
 
 	InvalidateRgnWindow();
 	CDialog::OnLButtonUp(nFlags, point);
@@ -269,11 +307,11 @@ void CCatchScreenDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 	int nHitTest;
 	nHitTest = m_rectTracker.HitTest(point);
 
-	//如果在是矩形内部双击
+	//????????????????
 	if (nHitTest == 8)
 	{
-		//保存位图到粘贴板中,bSave 为TRUE,
-		CopyScreenToBitmap(m_rectTracker.m_rect, TRUE);
+		//????????????????,bSave ?TRUE,
+		CopySelectionToClipboard(m_rectTracker.m_rect);
 		PostQuitMessage(0);
 	}
 
@@ -292,17 +330,18 @@ void CCatchScreenDlg::OnRButtonUp(UINT nFlags, CPoint point)
 	m_bLBtnDown = FALSE;
 	if (m_bFirstDraw)
 	{
-		//如果已经截取矩则清除截取矩形
+		//???????????????????????
 		m_bFirstDraw = FALSE;
-		//清除矩形大小
+		//???????????
 		m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
+		ClearAnnotationLayer();
 		UpdateTipString();
 		SetEidtWndText();
 		InvalidateRgnWindow();
 	}
 	else
 	{
-		//关闭程序
+		//??????
 		PostQuitMessage(0);
 	}
 
@@ -313,7 +352,7 @@ HBRUSH CCatchScreenDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	HBRUSH hbr = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 
-	//设置操作提示窗口文本颜色
+	//?????????????????????
 	if (pWnd->GetDlgCtrlID() == IDC_EDIT1)
 	{
 		pDC->SetTextColor(RGB(247,76,128));
@@ -325,7 +364,7 @@ HBRUSH CCatchScreenDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 BOOL CCatchScreenDlg::OnEraseBkgnd(CDC* pDC)
 {
 	return FALSE;
-	//用整个桌面填充全屏对话框背景
+	//??????????????????????
 	BITMAP bmp;
 	m_pBitmap->GetBitmap(&bmp);
 
@@ -342,65 +381,191 @@ BOOL CCatchScreenDlg::OnEraseBkgnd(CDC* pDC)
 
 BOOL CCatchScreenDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
-	//设置改变截取矩形大小时光标
+	//????????????????????
 	if (pWnd == this &&m_rectTracker.SetCursor(this, nHitTest)
-		&& !m_bDraw &&m_bFirstDraw) //此处判断保截取时当标始中为彩色光标
+		&& !m_bDraw &&m_bFirstDraw) //??????????????????????????
 	{
 		return TRUE;
 	}
 
-	//设置彩色光标
+	//??????????
 	SetCursor(m_hCursor);
 	return TRUE;
 }
 
-// 拷贝屏幕, 这段源码源自CSDN
-// lpRect 代表选定区域
+void CCatchScreenDlg::ClearAnnotationLayer()
+{
+	m_annotation.Clear();
+	m_annotationRect.SetRectEmpty();
+}
+
+void CCatchScreenDlg::SyncAnnotationLayerToSelection()
+{
+	CRect r = m_rectTracker.m_rect;
+	r.NormalizeRect();
+	if (r.IsRectEmpty())
+	{
+		ClearAnnotationLayer();
+		return;
+	}
+	if (m_annotationRect == r && m_annotation.IsValid())
+		return;
+	if (!m_annotationRect.IsRectEmpty() && m_annotationRect != r)
+		m_annotation.Clear();
+	m_annotation.EnsureSize(r.Width(), r.Height());
+	m_annotationRect = r;
+}
+
+HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
+{
+	CRect r = clientRect;
+	r.NormalizeRect();
+	if (r.IsRectEmpty() || !m_pBitmap)
+		return NULL;
+
+	const int nWidth = r.Width();
+	const int nHeight = r.Height();
+	if (nWidth <= 0 || nHeight <= 0)
+		return NULL;
+
+	HDC hScrDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
+	if (!hScrDC)
+		return NULL;
+	HDC hMemDC = CreateCompatibleDC(hScrDC);
+	if (!hMemDC)
+	{
+		DeleteDC(hScrDC);
+		return NULL;
+	}
+	HBITMAP hBitmap = CreateCompatibleBitmap(hScrDC, nWidth, nHeight);
+	if (!hBitmap)
+	{
+		DeleteDC(hMemDC);
+		DeleteDC(hScrDC);
+		return NULL;
+	}
+	HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
+
+	CDC dcSrc;
+	dcSrc.CreateCompatibleDC(CDC::FromHandle(hMemDC));
+	dcSrc.SelectObject(m_pBitmap);
+	BitBlt(hMemDC, 0, 0, nWidth, nHeight, dcSrc.m_hDC, r.left, r.top, SRCCOPY);
+
+	if (m_annotation.IsValid() && m_annotationRect == r)
+		m_annotation.DrawOn(hMemDC, 0, 0);
+
+	SelectObject(hMemDC, hOld);
+	DeleteDC(hMemDC);
+	DeleteDC(hScrDC);
+	return hBitmap;
+}
+
+BOOL CCatchScreenDlg::CopySelectionToClipboard(const CRect& clientRect)
+{
+	HBITMAP hBitmap = BuildSelectionBitmap(clientRect);
+	if (!hBitmap)
+		return FALSE;
+
+	if (!OpenClipboard())
+	{
+		DeleteObject(hBitmap);
+		return FALSE;
+	}
+	EmptyClipboard();
+	SetClipboardData(CF_BITMAP, hBitmap);
+	CloseClipboard();
+	return TRUE;
+}
+
+BOOL CCatchScreenDlg::SaveSelectionToFile(const CRect& clientRect)
+{
+	CRect r = clientRect;
+	r.NormalizeRect();
+	if (r.IsRectEmpty())
+	{
+		AfxMessageBox(_T("?????????????"));
+		return FALSE;
+	}
+
+	CFileDialog dlg(FALSE, _T("png"), _T("screenshot.png"),
+		OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY,
+		_T("PNG ?? (*.png)|*.png|JPEG ?? (*.jpg;*.jpeg)|*.jpg;*.jpeg||"),
+		this);
+	if (dlg.DoModal() != IDOK)
+		return FALSE;
+
+	HBITMAP hBitmap = BuildSelectionBitmap(r);
+	if (!hBitmap)
+		return FALSE;
+
+	Bitmap bmp(hBitmap, NULL);
+	CLSID clsid;
+	CString ext = dlg.GetFileExt();
+	ext.MakeLower();
+	LPCWSTR mime = (ext == _T("jpg") || ext == _T("jpeg")) ? L"image/jpeg" : L"image/png";
+	if (GetEncoderClsid(mime, &clsid) < 0)
+	{
+		DeleteObject(hBitmap);
+		AfxMessageBox(_T("???????????????"));
+		return FALSE;
+	}
+	Status st = bmp.Save(dlg.GetPathName(), &clsid, NULL);
+	DeleteObject(hBitmap);
+	if (st != Ok)
+	{
+		AfxMessageBox(_T("????????"));
+		return FALSE;
+	}
+	return TRUE;
+}
+
+// ???????, ?????????CSDN
+// lpRect ???????????
 HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 
 {
 	HDC       hScrDC, hMemDC;
-	// 屏幕和内存设备描述表
+	// ?????????????????
 	HBITMAP    hBitmap, hOldBitmap;
-	// 位图句柄
+	// ??????
 	int       nX, nY, nX2, nY2;
-	// 选定区域坐标
+	// ???????????
 	int       nWidth, nHeight;
 
-	// 确保选定区域不为空矩形
+	// ????????????????
 	if (IsRectEmpty(lpRect))
 		return NULL;
-	//为屏幕创建设备描述表
+	//?????????????????
 	hScrDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
 
-	//为屏幕设备描述表创建兼容的内存设备描述表
+	//??????????????????????????????????
 	hMemDC = CreateCompatibleDC(hScrDC);
-	// 获得选定区域坐标
+	// ??????????????
 	nX = lpRect->left;
 	nY = lpRect->top;
 	nX2 = lpRect->right;
 	nY2 = lpRect->bottom;
 
-	//确保选定区域是可见的
+	//????????????????
 	if (nX < 0)
 		nX = 0;
 	if (nY < 0)
 		nY = 0;
-	if (nX2 > m_xScreen)
-		nX2 = m_xScreen;
-	if (nY2 > m_yScreen)
-		nY2 = m_yScreen;
+	if (nX2 > m_nScreenWidth)
+		nX2 = m_nScreenWidth;
+	if (nY2 > m_nScreenHeight)
+		nY2 = m_nScreenHeight;
 	nWidth = nX2 - nX;
 	nHeight = nY2 - nY;
-	// 创建一个与屏幕设备描述表兼容的位图
+	// ?????????????????????????????
 	hBitmap = CreateCompatibleBitmap
 		(hScrDC, nWidth, nHeight);
-	// 把新位图选到内存设备描述表中
+	// ????????????????????????
 	hOldBitmap = (HBITMAP)SelectObject(hMemDC, hBitmap);
-	// 把屏幕设备描述表拷贝到内存设备描述表中
+	// ??????????????????????????????????
 	if (bSave)
 	{
-		//创建兼容DC,当bSave为中时把开始保存的全屏位图,按截取矩形大小保存
+		//????????DC,??bSave???????????????????,?????????????????
 		CDC dcCompatible;
 		dcCompatible.CreateCompatibleDC(CDC::FromHandle(hMemDC));
 		dcCompatible.SelectObject(m_pBitmap);
@@ -411,62 +576,47 @@ HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 	else
 	{
 		BitBlt(hMemDC, 0, 0, nWidth, nHeight,
-			hScrDC, nX, nY, SRCCOPY);
+			hScrDC, m_nOriginX + nX, m_nOriginY + nY, SRCCOPY);
 	}
 
 	hBitmap = (HBITMAP)SelectObject(hMemDC, hOldBitmap);
-	//得到屏幕位图的句柄
-	//清除 
+	//?????????????
+	//??? 
 	DeleteDC(hScrDC);
 	DeleteDC(hMemDC);
-
-	if (bSave)
-	{
-		if (OpenClipboard())
-		{
-			//清空剪贴板
-			EmptyClipboard();
-			//把屏幕内容粘贴到剪贴板上,
-			//hBitmap 为刚才的屏幕位图句柄
-			SetClipboardData(CF_BITMAP, hBitmap);
-			//关闭剪贴板
-			CloseClipboard();
-		}
-	}
-	// 返回位图句柄
 	return hBitmap;
 }
 
-// 显示操作提示信息
+// ?????????????
 void CCatchScreenDlg::UpdateTipString()
 {
 	CString strTemp;
 	if (!m_bDraw && !m_bFirstDraw)
 	{
-		strTemp = _T("\r\n\r\n·按下鼠标左键不放选择截取\r\n\r\n·ESC键、鼠标右键退出");
+		strTemp = _T("\r\n\r\n?????????????????????\r\n\r\n??ESC?????????????");
 	}
 	else 
 		if (m_bDraw && m_bFirstDraw)
 	{
-		strTemp = _T("\r\n\r\n·松开鼠标左键确定截取范围\r\n\r\n·ESC键退出");
+		strTemp = _T("\r\n\r\n?????????????????????\r\n\r\n??ESC?????");
 	}
 	else if (!m_bDraw && m_bFirstDraw)
 	{
-		CString sudami(_T("\r\n\r\n·矩形内双击鼠标左键保存\r\n\r\n·点击鼠标右键重新选择"));
-		strTemp = _T("\r\n\r\n·鼠标在矩形边缘调整大小");
+		CString sudami(_T("\r\n\r\n?????????????????????\r\n\r\n??????????????????"));
+		strTemp = _T("\r\n\r\n?????????????????????");
 
 		strTemp += sudami;
 	}
 	m_strEditTip = strTemp;
 }
 
-// 显示截取矩形信息
+// ?????????????
 void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 {
-	//截取矩形大小信息离鼠标间隔
+	//?????????????????????
 	const int space = 3;
 
-	//设置字体颜色大小
+	//???????????????
 	CPoint pt;
 	CPen pen(PS_SOLID, 1, RGB(47, 79, 79));
 	CPen *pOldPen;
@@ -475,11 +625,12 @@ void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 	//pDC->SetTextColor(RGB(147,147,147));
 	CFont font;
 	CFont * pOldFont;
-	font.CreatePointFont(90, _T("宋体"));
+	font.CreatePointFont(90, _T("????"));
 	pOldFont = pDC->SelectObject(&font);
 
-	//得到字体宽度和高度
+	//?????????????
 	GetCursorPos(&pt);
+	ScreenToClient(&pt);
 	int OldBkMode;
 	OldBkMode = pDC->SetBkMode(TRANSPARENT);
 
@@ -489,18 +640,18 @@ void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 	int	lineLength;
 	pDC->GetTextMetrics(&tm);
 	charHeight = tm.tmHeight + tm.tmExternalLeading;
-	size = pDC->GetTextExtent(_T("顶点位置  "), _tcslen(_T("顶点位置  ")));
+	size = pDC->GetTextExtent(_T("????????  "), _tcslen(_T("????????  ")));
 	lineLength = size.cx;
 
-	//初始化矩形, 以保证写下六行文字
+	//?????????, ????????????????
 	CRect rect(pt.x + space, pt.y - charHeight * 6 - space, pt.x + lineLength + space, pt.y - space);
 
-	//创建临时矩形
+	//???????????
 	CRect rectTemp;
-	//当矩形到达桌面边缘时调整方向和大小
-	if ((pt.x + rect.Width()) >= m_xScreen)
+	//?????????????????????????????
+	if ((pt.x + rect.Width()) >= m_nScreenWidth)
 	{
-		//桌面上方显示不下矩形
+		//?????????????????
 		rectTemp = rect;
 		rectTemp.left = rect.left - rect.Width() - space * 2;
 		rectTemp.right = rect.right - rect.Width() - space * 2;;
@@ -509,22 +660,22 @@ void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 
 	if ((pt.y - rect.Height()) <= 0)
 	{
-		//桌面右方显示不下矩形
+		//?????????????????
 		rectTemp = rect;
 		rectTemp.top = rect.top + rect.Height() + space * 2;;
 		rectTemp.bottom = rect.bottom + rect.Height() + space * 2;;
 		rect = rectTemp;
 	}
 
-	//创建空画刷画矩形
+	//??????????????
 	CBrush * pOldBrush;
 	pOldBrush = pDC->SelectObject(CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH)));
 
 	pDC->Rectangle(rect);
 	rect.top += 2;
-	//在矩形中显示文字
+	//??????????????
 	CRect outRect(rect.left, rect.top, rect.left + lineLength, rect.top + charHeight);
-	CString string(_T("顶点位置"));
+	CString string(_T("????????"));
 	pDC->DrawText(string, outRect, DT_CENTER);
 
 	outRect.SetRect(rect.left, rect.top + charHeight, rect.left + lineLength, charHeight + rect.top + charHeight);
@@ -533,7 +684,7 @@ void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 
 
 	outRect.SetRect(rect.left, rect.top + charHeight * 2, rect.left + lineLength, charHeight + rect.top + charHeight * 2);
-	string = _T("矩形大小");
+	string = _T("????????");
 	pDC->DrawText(string, outRect, DT_CENTER);
 
 	outRect.SetRect(rect.left, rect.top + charHeight * 3, rect.left + lineLength, charHeight + rect.top + charHeight * 3);
@@ -541,7 +692,7 @@ void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 	pDC->DrawText(string, outRect, DT_CENTER);
 
 	outRect.SetRect(rect.left, rect.top + charHeight * 4, rect.left + lineLength, charHeight + rect.top + charHeight * 4);
-	string = _T("光标坐标");
+	string = _T("???????");
 	pDC->DrawText(string, outRect, DT_CENTER);
 
 	outRect.SetRect(rect.left, rect.top + charHeight * 5, rect.left + lineLength, charHeight + rect.top + charHeight * 5);
@@ -554,14 +705,14 @@ void CCatchScreenDlg::DrawMessage(CRect &inRect, CDC * pDC)
 	pDC->SelectObject(pOldPen);
 }
 
-// 刷新局部窗口
+// ?????????
 void CCatchScreenDlg::InvalidateRgnWindow()
 {
-	//获取当全屏对话框窗口大小
+	//?????????????????
 	CRect rect1;
 	GetWindowRect(rect1);
 
-	//获取编辑框窗口大小
+	//???????????
 	CRect rect2;
 	m_tipEdit.GetWindowRect(rect2);
 
@@ -569,10 +720,10 @@ void CCatchScreenDlg::InvalidateRgnWindow()
 	rgn1.CreateRectRgnIndirect(rect1);
 	rgn2.CreateRectRgnIndirect(rect2);
 
-	//获取更新区域,就是除了编辑框窗口不更新
+	//???????????,????????????????
 	//m_rgn.CombineRgn(&rgn1, &rgn2, RGN_DIFF);
 
-	// 添加ToolBar不刷新
+	// ????ToolBar?????
 	CRect rect3;
 	::GetWindowRect(m_toolBar.GetHWND(),&rect3);
 	CRgn rgn3;
@@ -592,6 +743,7 @@ void CCatchScreenDlg::UpdateMousePointRGBString()
 
 	CPoint pt;
 	GetCursorPos(&pt);
+	ScreenToClient(&pt);
 
 	COLORREF color;
 	CClientDC dc(this);
@@ -599,13 +751,13 @@ void CCatchScreenDlg::UpdateMousePointRGBString()
 	BYTE rValue, gValue, bValue;
 	rValue = GetRValue(color);
 	gValue = GetGValue(color);
-	bValue = GetGValue(color);
+	bValue = GetBValue(color);
 
-	//按格式排放字符串
+	//?????????????
 	CString string;
-	string.Format(_T("\r\n\r\n·当前像素RGB(%d,%d,%d)"), rValue, gValue, bValue);
+	string.Format(_T("\r\n\r\n?????????RGB(%d,%d,%d)"), rValue, gValue, bValue);
 
-	//如果当前颜色没变则不刷新RGB值,以免窗口有更多闪烁
+	//?????????????????RGB?,???????????????
 	if (strOld != string)
 	{
 		m_strRgb = string;
@@ -636,33 +788,32 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		switch(wmId)
 		{
 		case MyToolBar_ID:
-			AfxMessageBox(_T("矩形"));
+			AfxMessageBox(_T("????"));
 			break;
 		case MyToolBar_ID+1:
-			AfxMessageBox(_T("圆形"));
+			AfxMessageBox(_T("???"));
 			break;
 		case MyToolBar_ID +2:
-			AfxMessageBox(_T("画笔"));
+			AfxMessageBox(_T("????"));
 			break;
 		case MyToolBar_ID +3:
-			AfxMessageBox(_T("马赛克"));
+			AfxMessageBox(_T("??????"));
 			break;
 		case MyToolBar_ID +4:
-			AfxMessageBox(_T("文字"));
+			AfxMessageBox(_T("????"));
 			break;
 		case MyToolBar_ID +5:
-			AfxMessageBox(_T("撤销"));
+			AfxMessageBox(_T("????"));
 			break;
 		case MyToolBar_ID +6:
-			CopyScreenToBitmap(m_rectTracker.m_rect, TRUE);
-			PostQuitMessage(0);
+			SaveSelectionToFile(m_rectTracker.m_rect);
 			break;
 		case MyToolBar_ID +7:
 			PostQuitMessage(0);
 			break;
 		case MyToolBar_ID +8:
-			CopyScreenToBitmap(m_rectTracker.m_rect, TRUE);
-			PostQuitMessage(0);
+			if (CopySelectionToClipboard(m_rectTracker.m_rect))
+				PostQuitMessage(0);
 			break;
 		default:
 			bHandle = false;
@@ -674,6 +825,7 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 	{
 		return CDialog::OnCommand(wParam,lParam);
 	}
+	return TRUE;
 }
 
 ////////////////////////////////// END OF FILE ///////////////////////////////////////

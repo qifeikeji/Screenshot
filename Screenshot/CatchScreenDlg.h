@@ -14,6 +14,7 @@
 #endif
 
 #include "MyToolBar.h"
+#include "AnnotationLayer.h"
 //--------------------------------------------------------------------------
 
 /////////////////////////////////////////////////////////////////////////////
@@ -29,10 +30,11 @@ public:
 	CMyToolBar m_toolBar;
 
 public:
-	
-	int m_xScreen;
-	int m_yScreen;
-	
+	// 虚拟桌面：窗口客户区 (0,0) 对应屏幕 (m_nOriginX, m_nOriginY)
+	int m_nOriginX;
+	int m_nOriginY;
+	int m_nScreenWidth;
+	int m_nScreenHeight;
 
 	BOOL m_bLBtnDown;
 
@@ -49,9 +51,17 @@ public:
 	HBITMAP m_hBitmap;
 	
 	CRgn m_rgn;						// 背景擦除区域
+	CAnnotationLayer m_annotation;  // 选区标注层
+	CRect m_annotationRect;         // 与标注层尺寸对应的选区（客户区坐标）
 
 public:
-	HBITMAP CopyScreenToBitmap(LPRECT lpRect,BOOL bSave=FALSE);   /* 拷贝桌面到位图 */
+	HBITMAP CopyScreenToBitmap(LPRECT lpRect,BOOL bSave=FALSE);   /* 拷贝桌面到位图（内部/初始化用） */
+	HBITMAP BuildSelectionBitmap(const CRect& clientRect) const;  /* 底图 + 标注合成 */
+	BOOL CopySelectionToClipboard(const CRect& clientRect);
+	BOOL SaveSelectionToFile(const CRect& clientRect);
+	void SyncAnnotationLayerToSelection();
+	void ClearAnnotationLayer();
+
 	void UpdateTipString();                            //显示操作提示信息
 	void DrawMessage(CRect &inRect,CDC * pDC);       //显示截取矩形信息
 	void InvalidateRgnWindow();                        //重画窗口

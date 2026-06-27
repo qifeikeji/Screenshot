@@ -31,7 +31,8 @@
 #include <afxdtctl.h>           // MFC 对 Internet Explorer 4 公共控件的支持
 #endif
 #ifndef _AFX_NO_AFXCMN_SUPPORT
-#include <afxcmn.h>                     // MFC 对 Windows 公共控件的支持
+#include <afxdlgs.h>
+#include <afxcmn.h>
 #endif // _AFX_NO_AFXCMN_SUPPORT
 
 
