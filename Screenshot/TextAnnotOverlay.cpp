@@ -72,7 +72,9 @@ void CTextAnnotOverlay::MeasureAndResizeBlock(TextAnnotBlock& block, int maxWrap
 	CFont* pOld = pFont ? dc.SelectObject(pFont) : nullptr;
 
 	CRect calc(0, 0, maxWrapWidth - kTextPad * 2, 0);
-	const CString drawText = block.text.IsEmpty() ? _T(" ") : block.text;
+	CString drawText = block.text;
+	if (drawText.IsEmpty())
+		drawText = _T(" ");
 	dc.DrawText(drawText, calc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
 
 	if (pOld)

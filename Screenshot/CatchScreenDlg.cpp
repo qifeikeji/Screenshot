@@ -867,7 +867,7 @@ void CCatchScreenDlg::DrawTextOverlay(CDC& dc) const
 			textRc.DeflateRect(6, 6);
 			dc.SetBkMode(TRANSPARENT);
 			dc.SetTextColor(kAnnotColor);
-			CFont* pOldFont = dc.SelectObject(&m_textAnnotFont);
+			CFont* pOldFont = dc.SelectObject(const_cast<CFont*>(&m_textAnnotFont));
 			dc.DrawText(p->text, textRc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX);
 			dc.SelectObject(pOldFont);
 		}
@@ -900,8 +900,6 @@ void CCatchScreenDlg::CompositeTextOverlay(HDC hdc, const CRect& selectionClient
 		if (hOldFont)
 			SelectObject(hdc, hOldFont);
 	}
-}
-
 }
 
 void CCatchScreenDlg::FinishSelectionIfValid(const CPoint& endPt)
