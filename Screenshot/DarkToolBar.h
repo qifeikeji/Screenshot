@@ -9,7 +9,7 @@ public:
 	virtual ~CDarkToolBar();
 
 	BOOL Create(CWnd* pParent);
-	void SetInsideSelection(const CRect& selectionScreen);
+	void SetInsideSelectionClient(const CRect& selectionClient);
 	void ShowBar();
 	void HideBar();
 	HWND GetHWND() const { return m_hWnd; }
@@ -24,6 +24,8 @@ protected:
 
 private:
 	int HitTest(CPoint pt) const;
+	CRect ButtonRect(int index) const;
+	void InvalidateButton(int index);
 
 	HIMAGELIST m_hImageList;
 	int m_hoverIndex;

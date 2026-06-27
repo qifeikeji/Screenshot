@@ -10,6 +10,7 @@ struct MonitorEnumCtx
 struct CaptureCtx
 {
 	HDC dest;
+	HDC screen;
 	int originX;
 	int originY;
 };
@@ -40,11 +41,9 @@ static BOOL CALLBACK MonitorCaptureProc(HMONITOR hMon, HDC, LPRECT, LPARAM lp)
 	const int h = mi.rcMonitor.bottom - mi.rcMonitor.top;
 	const int dx = mi.rcMonitor.left - c->originX;
 	const int dy = mi.rcMonitor.top - c->originY;
-	HDC hScr = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
-	if (hScr)
+	if (c->screen)
 	{
-		BitBlt(c->dest, dx, dy, w, h, hScr, mi.rcMonitor.left, mi.rcMonitor.top, SRCCOPY);
-		DeleteDC(hScr);
+		BitBlt(c->dest, dx, dy, w, h, c->screen, mi.rcMonitor.left, mi.rcMonitor.top, SRCCOPY);
 	}
 	return TRUE;
 }
@@ -73,25 +72,70 @@ void QueryVirtualScreen(VirtualScreenInfo* info)
 	info->height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 }
 
+BOOL QueryMonitorAtPoint(POINT screenPt, VirtualScreenInfo* info)
+{
+	if (!info)
+		return FALSE;
+	HMONITOR hMon = MonitorFromPoint(screenPt, MONITOR_DEFAULTTONEAREST);
+	MONITORINFO mi = {};
+	mi.cbSize = sizeof(mi);
+	if (!GetMonitorInfo(hMon, &mi))
+		return FALSE;
+	info->originX = mi.rcMonitor.left;
+	info->originY = mi.rcMonitor.top;
+	info->width = mi.rcMonitor.right - mi.rcMonitor.left;
+	info->height = mi.rcMonitor.bottom - mi.rcMonitor.top;
+	return TRUE;
+}
+
+HBITMAP CaptureScreenRect(const VirtualScreenInfo& info)
+{
+	if (info.width <= 0 || info.height <= 0)
+		return NULL;
+
+	HDC hScreen = GetDC(NULL);
+	if (!hScreen)
+		return NULL;
+	HDC hMemDC = CreateCompatibleDC(hScreen);
+	if (!hMemDC)
+	{
+		ReleaseDC(NULL, hScreen);
+		return NULL;
+	}
+	HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, info.width, info.height);
+	if (!hBitmap)
+	{
+		DeleteDC(hMemDC);
+		ReleaseDC(NULL, hScreen);
+		return NULL;
+	}
+	HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
+	BitBlt(hMemDC, 0, 0, info.width, info.height, hScreen, info.originX, info.originY, SRCCOPY);
+	SelectObject(hMemDC, hOld);
+	DeleteDC(hMemDC);
+	ReleaseDC(NULL, hScreen);
+	return hBitmap;
+}
+
 HBITMAP CaptureVirtualDesktop(const VirtualScreenInfo& info)
 {
 	if (info.width <= 0 || info.height <= 0)
 		return NULL;
 
-	HDC hScrDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
-	if (!hScrDC)
+	HDC hScreen = GetDC(NULL);
+	if (!hScreen)
 		return NULL;
-	HDC hMemDC = CreateCompatibleDC(hScrDC);
+	HDC hMemDC = CreateCompatibleDC(hScreen);
 	if (!hMemDC)
 	{
-		DeleteDC(hScrDC);
+		ReleaseDC(NULL, hScreen);
 		return NULL;
 	}
-	HBITMAP hBitmap = CreateCompatibleBitmap(hScrDC, info.width, info.height);
+	HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, info.width, info.height);
 	if (!hBitmap)
 	{
 		DeleteDC(hMemDC);
-		DeleteDC(hScrDC);
+		ReleaseDC(NULL, hScreen);
 		return NULL;
 	}
 	HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
@@ -99,11 +143,11 @@ HBITMAP CaptureVirtualDesktop(const VirtualScreenInfo& info)
 	RECT fill = { 0, 0, info.width, info.height };
 	FillRect(hMemDC, &fill, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
-	CaptureCtx cap = { hMemDC, info.originX, info.originY };
+	CaptureCtx cap = { hMemDC, hScreen, info.originX, info.originY };
 	EnumDisplayMonitors(NULL, NULL, MonitorCaptureProc, reinterpret_cast<LPARAM>(&cap));
 
 	SelectObject(hMemDC, hOld);
 	DeleteDC(hMemDC);
-	DeleteDC(hScrDC);
+	ReleaseDC(NULL, hScreen);
 	return hBitmap;
 }

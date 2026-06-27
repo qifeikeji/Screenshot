@@ -25,7 +25,8 @@ BOOL CSettingsDlg::OnInitDialog()
 	m_brBg.CreateSolidBrush(RGB(30, 30, 30));
 
 	CDialog::OnInitDialog();
-	SetWindowText(_T("设置"));
+	SetWindowText(L"\u8bbe\u7f6e");
+	SetDlgItemText(IDC_STATIC_HOTKEY_LABEL, L"\u622a\u56fe\u5feb\u6377\u952e");
 
 	WORD hk = 0;
 	HotKeyToHotKeyCtrl(s.hotkeyModifiers, s.hotkeyVk, hk);
@@ -53,12 +54,12 @@ void CSettingsDlg::OnBnClickedOk()
 	HotKeyFromHotKeyCtrl(hk, mod, vk);
 	if (vk == 0)
 	{
-		AfxMessageBox(_T("请设置有效的快捷键。"));
+		AfxMessageBox(L"\u8bf7\u8bbe\u7f6e\u6709\u6548\u7684\u5feb\u6377\u952e\u3002");
 		return;
 	}
 	if (mod == 0)
 	{
-		AfxMessageBox(_T("快捷键需包含 Ctrl、Alt 或 Shift 等组合键。"));
+		AfxMessageBox(L"\u5feb\u6377\u952e\u9700\u5305\u542b Ctrl\u3001Alt \u6216 Shift \u7b49\u7ec4\u5408\u952e\u3002");
 		return;
 	}
 

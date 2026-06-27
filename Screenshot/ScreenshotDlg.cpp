@@ -78,6 +78,9 @@ BOOL CScreenshotDlg::OnInitDialog()
 	m_btnStart.SetAccent(true);
 	m_btnSettings.SetAccent(false);
 	ApplyWindowSizeFromSettings();
+	m_btnStart.SetWindowText(L"\u622a\u56fe");
+	m_btnSettings.SetWindowText(L"\u8bbe\u7f6e");
+	SetWindowText(L"\u622a\u56fe\u5de5\u5177");
 	RegisterScreenshotHotKey();
 	return TRUE;
 }

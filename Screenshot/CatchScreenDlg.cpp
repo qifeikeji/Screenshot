@@ -67,21 +67,24 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_bDraw = FALSE;
 	m_bFirstDraw = FALSE;
 	m_bQuit = FALSE;
+	m_bToolBarShown = FALSE;
 	m_startPt = 0;
 	m_rectPrevDrag.SetRectEmpty();
 
 	VirtualScreenInfo vsi = {};
-	QueryVirtualScreen(&vsi);
+	POINT cursor = {};
+	GetCursorPos(&cursor);
+	if (!QueryMonitorAtPoint(cursor, &vsi))
+		QueryVirtualScreen(&vsi);
 	m_nOriginX = vsi.originX;
 	m_nOriginY = vsi.originY;
 	m_nScreenWidth = vsi.width;
 	m_nScreenHeight = vsi.height;
 
-	m_hBitmap = CaptureVirtualDesktop(vsi);
+	m_hBitmap = CaptureScreenRect(vsi);
 	if (!m_hBitmap)
 	{
-		CRect rect(0, 0, m_nScreenWidth, m_nScreenHeight);
-		m_hBitmap = CopyScreenToBitmap(&rect);
+		m_hBitmap = CaptureVirtualDesktop(vsi);
 	}
 	m_pBitmap = CBitmap::FromHandle(m_hBitmap);
 
@@ -105,12 +108,22 @@ BEGIN_MESSAGE_MAP(CCatchScreenDlg, CDialog)
 	ON_WM_RBUTTONDOWN()
 END_MESSAGE_MAP()
 
+void CCatchScreenDlg::InvalidateSelectionFrame(const CRect& rect)
+{
+	CRect inv = rect;
+	inv.NormalizeRect();
+	if (inv.IsRectEmpty())
+		return;
+	inv.InflateRect(12, 12);
+	InvalidateRect(&inv, FALSE);
+}
+
 void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 {
 	CRect inv = area;
 	inv.NormalizeRect();
-	inv.InflateRect(8, 8);
-	if (m_toolBar.GetHWND())
+	inv.InflateRect(16, 16);
+	if (m_toolBar.GetSafeHwnd() && m_toolBar.IsWindowVisible())
 	{
 		CRect tb;
 		m_toolBar.GetWindowRect(&tb);
@@ -120,16 +133,20 @@ void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 	InvalidateRect(&inv, FALSE);
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// CCatchScreenDlg message handlers
-
 void CCatchScreenDlg::CancelCurrentSelection()
 {
+	CRect old = m_rectTracker.m_rect;
+	old.NormalizeRect();
+
 	m_bFirstDraw = FALSE;
 	m_bDraw = FALSE;
+	m_bToolBarShown = FALSE;
 	m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
 	ClearAnnotationLayer();
 	m_toolBar.HideBar();
+
+	if (!old.IsRectEmpty() && old.Width() > 0 && old.Height() > 0)
+		InvalidateSelectionFrame(old);
 }
 
 void CCatchScreenDlg::BeginSelectionAt(CPoint point)
@@ -138,16 +155,16 @@ void CCatchScreenDlg::BeginSelectionAt(CPoint point)
 	m_startPt = point;
 	m_bDraw = TRUE;
 	m_bFirstDraw = TRUE;
+	m_bToolBarShown = FALSE;
 	m_rectTracker.m_rect.SetRect(point.x, point.y, point.x + 4, point.y + 4);
-	InvalidateAroundRect(m_rectTracker.m_rect);
+	InvalidateRect(NULL, FALSE);
 }
 
 void CCatchScreenDlg::PositionToolBar()
 {
 	CRect r = m_rectTracker.m_rect;
 	r.NormalizeRect();
-	ClientToScreen(&r);
-	m_toolBar.SetInsideSelection(r);
+	m_toolBar.SetInsideSelectionClient(r);
 }
 
 BOOL CCatchScreenDlg::OnInitDialog()
@@ -221,15 +238,17 @@ void CCatchScreenDlg::OnPaint()
 
 		BITMAP bm = {};
 		m_pBitmap->GetBitmap(&bm);
-		if (bm.bmWidth > 0 && bm.bmHeight > 0 &&
-			(bm.bmWidth != client.Width() || bm.bmHeight != client.Height()))
+		const int copyW = min(client.Width(), bm.bmWidth);
+		const int copyH = min(client.Height(), bm.bmHeight);
+		memDC.BitBlt(0, 0, copyW, copyH, &srcDC, 0, 0, SRCCOPY);
+		if (copyW < client.Width() || copyH < client.Height())
 		{
-			memDC.SetStretchBltMode(HALFTONE);
-			memDC.StretchBlt(0, 0, client.Width(), client.Height(), &srcDC, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
-		}
-		else
-		{
-			memDC.BitBlt(0, 0, client.Width(), client.Height(), &srcDC, 0, 0, SRCCOPY);
+			CRect fill(copyW, 0, client.Width(), client.Height());
+			if (!fill.IsRectEmpty())
+				memDC.FillSolidRect(&fill, RGB(0, 0, 0));
+			fill.SetRect(0, copyH, client.Width(), client.Height());
+			if (!fill.IsRectEmpty())
+				memDC.FillSolidRect(&fill, RGB(0, 0, 0));
 		}
 
 		if (m_bFirstDraw)
@@ -259,10 +278,11 @@ void CCatchScreenDlg::OnCancel()
 
 void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
-	if(m_bLBtnDown)
+	if (m_bDraw && m_bToolBarShown)
+	{
 		m_toolBar.HideBar();
-	else if (m_bFirstDraw)
-		m_toolBar.ShowBar();
+		m_bToolBarShown = FALSE;
+	}
 	if (m_bDraw)
 	{
 		CRect prev = m_rectTracker.m_rect;
@@ -292,7 +312,10 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 		{
 			m_rectTracker.Track(this, point, TRUE);
 			SyncAnnotationLayerToSelection();
+			CopySelectionToClipboard(m_rectTracker.m_rect);
 			PositionToolBar();
+			m_toolBar.ShowBar();
+			m_bToolBarShown = TRUE;
 			InvalidateAroundRect(m_rectTracker.m_rect);
 		}
 	}
@@ -314,6 +337,7 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 			CopySelectionToClipboard(m_rectTracker.m_rect);
 			PositionToolBar();
 			m_toolBar.ShowBar();
+			m_bToolBarShown = TRUE;
 		}
 	}
 	SyncAnnotationLayerToSelection();
@@ -349,11 +373,7 @@ void CCatchScreenDlg::OnRButtonUp(UINT nFlags, CPoint point)
 	m_bLBtnDown = FALSE;
 	if (m_bFirstDraw)
 	{
-		//???????????????????????
-		m_bFirstDraw = FALSE;
-		//???????????
-		m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
-		ClearAnnotationLayer();
+		CancelCurrentSelection();
 		InvalidateRect(NULL, FALSE);
 	}
 	else
@@ -432,7 +452,7 @@ HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
 	if (nWidth <= 0 || nHeight <= 0)
 		return NULL;
 
-	HDC hScrDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
+	HDC hScrDC = GetDC(NULL);
 	if (!hScrDC)
 		return NULL;
 	HDC hMemDC = CreateCompatibleDC(hScrDC);
@@ -460,7 +480,7 @@ HBITMAP CCatchScreenDlg::BuildSelectionBitmap(const CRect& clientRect) const
 
 	SelectObject(hMemDC, hOld);
 	DeleteDC(hMemDC);
-	DeleteDC(hScrDC);
+	ReleaseDC(NULL, hScrDC);
 	return hBitmap;
 }
 
@@ -487,7 +507,7 @@ BOOL CCatchScreenDlg::SaveSelectionToFile(const CRect& clientRect)
 	r.NormalizeRect();
 	if (r.IsRectEmpty())
 	{
-		AfxMessageBox(_T("?????????????"));
+		AfxMessageBox(L"请先框选有效区域。");
 		return FALSE;
 	}
 
@@ -540,11 +560,15 @@ HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 	if (IsRectEmpty(lpRect))
 		return NULL;
 	//?????????????????
-	hScrDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
-
-	//??????????????????????????????????
+	hScrDC = GetDC(NULL);
+	if (!hScrDC)
+		return NULL;
 	hMemDC = CreateCompatibleDC(hScrDC);
-	// ??????????????
+	if (!hMemDC)
+	{
+		ReleaseDC(NULL, hScrDC);
+		return NULL;
+	}
 	nX = lpRect->left;
 	nY = lpRect->top;
 	nX2 = lpRect->right;
@@ -584,10 +608,8 @@ HBITMAP CCatchScreenDlg::CopyScreenToBitmap(LPRECT lpRect, BOOL bSave)
 	}
 
 	hBitmap = (HBITMAP)SelectObject(hMemDC, hOldBitmap);
-	//?????????????
-	//??? 
-	DeleteDC(hScrDC);
 	DeleteDC(hMemDC);
+	ReleaseDC(NULL, hScrDC);
 	return hBitmap;
 }
 

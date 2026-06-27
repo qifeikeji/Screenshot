@@ -31,6 +31,7 @@ public:
 	BOOL m_bDraw;
 	BOOL m_bFirstDraw;
 	BOOL m_bQuit;
+	BOOL m_bToolBarShown;
 	CPoint m_startPt;
 	
 	CMyTracker m_rectTracker;
@@ -50,6 +51,7 @@ public:
 	void SyncAnnotationLayerToSelection();
 	void ClearAnnotationLayer();
 	void InvalidateAroundRect(const CRect& area);
+	void InvalidateSelectionFrame(const CRect& rect);
 	void PositionToolBar();
 	void BeginSelectionAt(CPoint point);
 	void CancelCurrentSelection();

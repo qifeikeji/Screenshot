@@ -27,6 +27,7 @@
 #define IDC_EDIT_MASK_GRAY              1005
 #define IDC_EDIT_MASK_OPACITY           1006
 #define IDC_HOTKEY_SCREENSHOT           1007
+#define IDC_STATIC_HOTKEY_LABEL         1008
 
 // Next default values for new objects
 // 

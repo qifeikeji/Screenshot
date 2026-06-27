@@ -45,8 +45,8 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 {
 	const int w = kPadding * 2 + kButtonCount * kButtonSize + (kButtonCount - 1) * 4;
 	const int h = kPadding * 2 + kButtonSize;
-	if (!CreateEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, AfxRegisterWndClass(CS_DBLCLKS),
-		_T("DarkToolBar"), WS_POPUP | WS_VISIBLE, 0, 0, w, h, pParent->GetSafeHwnd(), NULL))
+	if (!CreateEx(0, AfxRegisterWndClass(CS_DBLCLKS),
+		_T("DarkToolBar"), WS_CHILD | WS_CLIPSIBLINGS, 0, 0, w, h, pParent->GetSafeHwnd(), NULL))
 		return FALSE;
 
 	m_hImageList = ImageList_Create(18, 18, ILC_COLOR32, kButtonCount, 1);
@@ -68,20 +68,18 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 	return TRUE;
 }
 
-void CDarkToolBar::SetInsideSelection(const CRect& selectionScreen)
+void CDarkToolBar::SetInsideSelectionClient(const CRect& selectionClient)
 {
 	if (!m_hWnd)
 		return;
 
-	CRect sel = selectionScreen;
+	CRect sel = selectionClient;
 	sel.NormalizeRect();
 	if (sel.IsRectEmpty())
 		return;
 
-	CRect rc;
-	GetWindowRect(&rc);
-	const int w = rc.Width();
-	const int h = rc.Height();
+	const int w = kPadding * 2 + kButtonCount * kButtonSize + (kButtonCount - 1) * 4;
+	const int h = kPadding * 2 + kButtonSize;
 	const int margin = 6;
 
 	int x = sel.right - w - margin;
@@ -101,12 +99,35 @@ void CDarkToolBar::SetInsideSelection(const CRect& selectionScreen)
 	if (maxY >= minY && y > maxY)
 		y = maxY;
 
-	SetWindowPos(&wndTop, x, y, w, h, SWP_SHOWWINDOW);
+	SetWindowPos(&CWnd::wndTop, x, y, w, h, SWP_NOACTIVATE);
+}
+
+CRect CDarkToolBar::ButtonRect(int index) const
+{
+	CRect btn;
+	if (index < 0 || index >= kButtonCount)
+		return btn;
+	const int x = kPadding + index * (kButtonSize + 4);
+	btn.SetRect(x, kPadding, x + kButtonSize, kPadding + kButtonSize);
+	return btn;
+}
+
+void CDarkToolBar::InvalidateButton(int index)
+{
+	if (index < 0)
+	{
+		Invalidate();
+		return;
+	}
+	CRect btn = ButtonRect(index);
+	btn.InflateRect(1, 1);
+	InvalidateRect(&btn, FALSE);
 }
 
 void CDarkToolBar::ShowBar()
 {
 	ShowWindow(SW_SHOW);
+	SetWindowPos(&CWnd::wndTop, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 void CDarkToolBar::HideBar()
@@ -120,13 +141,10 @@ int CDarkToolBar::HitTest(CPoint pt) const
 	GetClientRect(&rc);
 	if (!rc.PtInRect(pt))
 		return -1;
-	int x = kPadding;
 	for (int i = 0; i < kButtonCount; ++i)
 	{
-		CRect btn(x, kPadding, x + kButtonSize, kPadding + kButtonSize);
-		if (btn.PtInRect(pt))
+		if (ButtonRect(i).PtInRect(pt))
 			return i;
-		x += kButtonSize + 4;
 	}
 	return -1;
 }
@@ -171,85 +189,87 @@ void DrawToolButton(Gdiplus::Graphics& g, HIMAGELIST imageList, const CRect& rc,
 } // namespace
 
 BEGIN_MESSAGE_MAP(CDarkToolBar, CWnd)
- ON_WM_PAINT()
- ON_WM_LBUTTONDOWN()
- ON_WM_MOUSEMOVE()
- ON_MESSAGE(WM_MOUSELEAVE, &CDarkToolBar::OnMouseLeave)
- ON_WM_ERASEBKGND()
+	ON_WM_PAINT()
+	ON_WM_LBUTTONDOWN()
+	ON_WM_MOUSEMOVE()
+	ON_MESSAGE(WM_MOUSELEAVE, &CDarkToolBar::OnMouseLeave)
+	ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
 void CDarkToolBar::OnPaint()
 {
- CPaintDC dc(this);
- Graphics g(dc.m_hDC);
- g.SetSmoothingMode(SmoothingModeAntiAlias);
- CRect rc;
- GetClientRect(&rc);
- GraphicsPath bg;
- const REAL r = 10.f;
- bg.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
- bg.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
- bg.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
- bg.AddArc((REAL)rc.left, (REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
- bg.CloseFigure();
- SolidBrush panel(Color(235, 36, 36, 38));
- Pen border(Color(200, 58, 58, 60), 1.f);
- g.FillPath(&panel, &bg);
- g.DrawPath(&border, &bg);
+	CPaintDC dc(this);
+	Graphics g(dc.m_hDC);
+	g.SetSmoothingMode(SmoothingModeAntiAlias);
+	CRect rc;
+	GetClientRect(&rc);
+	GraphicsPath bg;
+	const REAL r = 10.f;
+	bg.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
+	bg.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
+	bg.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);
+	bg.AddArc((REAL)rc.left, (REAL)rc.bottom - r * 2, r * 2, r * 2, 90, 90);
+	bg.CloseFigure();
+	SolidBrush panel(Color(235, 36, 36, 38));
+	Pen border(Color(200, 58, 58, 60), 1.f);
+	g.FillPath(&panel, &bg);
+	g.DrawPath(&border, &bg);
 
- int x = kPadding;
- for (int i = 0; i < kButtonCount; ++i)
- {
-  CRect btn(x, kPadding, x + kButtonSize, kPadding + kButtonSize);
-  DrawToolButton(g, m_hImageList, btn, i, i == m_hoverIndex, i == m_pressedIndex);
-  x += kButtonSize + 4;
- }
+	for (int i = 0; i < kButtonCount; ++i)
+	{
+		CRect btn = ButtonRect(i);
+		DrawToolButton(g, m_hImageList, btn, i, i == m_hoverIndex, i == m_pressedIndex);
+	}
 }
 
 void CDarkToolBar::OnLButtonDown(UINT nFlags, CPoint point)
 {
- int hit = HitTest(point);
- if (hit >= 0 && GetParent())
- {
-  m_pressedIndex = hit;
-  Invalidate();
-  GetParent()->SendMessage(WM_COMMAND, MAKEWPARAM(DarkToolBar_CommandBase + hit, BN_CLICKED),
-   (LPARAM)m_hWnd);
- }
- CWnd::OnLButtonDown(nFlags, point);
+	int hit = HitTest(point);
+	if (hit >= 0 && GetParent())
+	{
+		m_pressedIndex = hit;
+		InvalidateButton(hit);
+		GetParent()->SendMessage(WM_COMMAND, MAKEWPARAM(DarkToolBar_CommandBase + hit, BN_CLICKED),
+			(LPARAM)m_hWnd);
+		m_pressedIndex = -1;
+	}
+	CWnd::OnLButtonDown(nFlags, point);
 }
 
 void CDarkToolBar::OnMouseMove(UINT nFlags, CPoint point)
 {
- if (!m_trackingLeave)
- {
-  TRACKMOUSEEVENT tme = {};
-  tme.cbSize = sizeof(tme);
-  tme.dwFlags = TME_LEAVE;
-  tme.hwndTrack = m_hWnd;
-  TrackMouseEvent(&tme);
-  m_trackingLeave = true;
- }
- int hit = HitTest(point);
- if (hit != m_hoverIndex)
- {
-  m_hoverIndex = hit;
-  Invalidate();
- }
- CWnd::OnMouseMove(nFlags, point);
+	if (!m_trackingLeave)
+	{
+		TRACKMOUSEEVENT tme = {};
+		tme.cbSize = sizeof(tme);
+		tme.dwFlags = TME_LEAVE;
+		tme.hwndTrack = m_hWnd;
+		TrackMouseEvent(&tme);
+		m_trackingLeave = true;
+	}
+	int hit = HitTest(point);
+	if (hit != m_hoverIndex)
+	{
+		const int prev = m_hoverIndex;
+		m_hoverIndex = hit;
+		InvalidateButton(prev);
+		InvalidateButton(hit);
+	}
+	CWnd::OnMouseMove(nFlags, point);
 }
 
 LRESULT CDarkToolBar::OnMouseLeave(WPARAM, LPARAM)
 {
- m_trackingLeave = false;
- m_hoverIndex = -1;
- m_pressedIndex = -1;
- Invalidate();
- return 0;
+	m_trackingLeave = false;
+	const int prev = m_hoverIndex;
+	m_hoverIndex = -1;
+	m_pressedIndex = -1;
+	InvalidateButton(prev);
+	return 0;
 }
 
 BOOL CDarkToolBar::OnEraseBkgnd(CDC* pDC)
 {
- UNREFERENCED_PARAMETER(pDC);
- return TRUE;
+	UNREFERENCED_PARAMETER(pDC);
+	return TRUE;
 }
