@@ -125,7 +125,7 @@ void CDarkButton::DrawButton(CDC& dc, const CRect& rc, bool hover, bool pressed)
 	CString text;
 	GetWindowText(text);
 	FontFamily ff(L"Segoe UI");
-	Font font(&ff, 10.f, FontStyleRegular, UnitPoint);
+	Font font(&ff, 9.f, FontStyleRegular, UnitPoint);
 	SolidBrush textBrush(Color(255, 245, 245, 247));
 	StringFormat fmt;
 	fmt.SetAlignment(StringAlignmentCenter);

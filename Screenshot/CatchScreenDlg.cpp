@@ -117,26 +117,25 @@ void FillDimRect(Gdiplus::Graphics& g, const CRect& rc, BYTE gray, BYTE alpha)
 		(Gdiplus::REAL)rc.Width(), (Gdiplus::REAL)rc.Height());
 }
 
-void DrawDimOverlay(Gdiplus::Graphics& g, const CRect& client, const CRect& selection)
+void PaintDimOutsideSelection(CDC& memDC, CDC& srcDC, const CRect& client, const CRect& selection)
 {
 	const AppSettings& cfg = GetAppSettings();
 	const BYTE gray = (BYTE)cfg.maskGray;
 	const BYTE alpha = (BYTE)((cfg.maskOpacity * 255) / 100);
+
+	Gdiplus::Graphics g(memDC.m_hDC);
+	Gdiplus::SolidBrush dimBrush(Gdiplus::Color(alpha, gray, gray, gray));
+	g.FillRectangle(&dimBrush, 0.f, 0.f, (Gdiplus::REAL)client.Width(), (Gdiplus::REAL)client.Height());
+
 	CRect sel = selection;
 	sel.NormalizeRect();
-	if (sel.IsRectEmpty())
+	CRect clip = client;
+	sel.IntersectRect(&sel, &clip);
+	if (!sel.IsRectEmpty())
 	{
-		FillDimRect(g, client, gray, alpha);
-		return;
+		memDC.BitBlt(sel.left, sel.top, sel.Width(), sel.Height(),
+			&srcDC, sel.left, sel.top, SRCCOPY);
 	}
-	CRect top(client.left, client.top, client.right, sel.top);
-	CRect bottom(client.left, sel.bottom, client.right, client.bottom);
-	CRect left(client.left, sel.top, sel.left, sel.bottom);
-	CRect right(sel.right, sel.top, client.right, sel.bottom);
-	FillDimRect(g, top, gray, alpha);
-	FillDimRect(g, bottom, gray, alpha);
-	FillDimRect(g, left, gray, alpha);
-	FillDimRect(g, right, gray, alpha);
 }
 
 } // namespace
@@ -159,19 +158,53 @@ void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 /////////////////////////////////////////////////////////////////////////////
 // CCatchScreenDlg message handlers
 
+void CCatchScreenDlg::PositionToolBar()
+{
+	CRect r = m_rectTracker.m_rect;
+	r.NormalizeRect();
+	CPoint pt(r.right, r.bottom);
+	ClientToScreen(&pt);
+	m_toolBar.SetShowPlaceScreen(pt.x, pt.y);
+}
+
 BOOL CCatchScreenDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-	//?????????????????????
+
+	ModifyStyle(WS_CAPTION | WS_SYSMENU | DS_MODALFRAME | DS_3DLOOK, WS_POPUP);
+	ModifyStyleEx(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE, WS_EX_TOPMOST);
+
 	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, m_nScreenWidth, m_nScreenHeight, SWP_SHOWWINDOW);
 
 	m_tipEdit.ShowWindow(SW_HIDE);
 
 	m_toolBar.Create(this);
-	m_toolBar.SetShowPlace(300, 300);
+	PositionToolBar();
 
 	((CScreenshotApp *)AfxGetApp())->m_hwndDlg = m_hWnd;
 	return TRUE;
+}
+
+BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
+{
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE)
+	{
+		if (m_bFirstDraw)
+		{
+			m_bFirstDraw = FALSE;
+			m_bDraw = FALSE;
+			m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
+			ClearAnnotationLayer();
+			m_toolBar.HideBar();
+			InvalidateRect(NULL, FALSE);
+		}
+		else
+		{
+			PostQuitMessage(0);
+		}
+		return TRUE;
+	}
+	return CDialog::PreTranslateMessage(pMsg);
 }
  
 void CCatchScreenDlg::OnPaint()
@@ -206,12 +239,23 @@ void CCatchScreenDlg::OnPaint()
 		CDC srcDC;
 		srcDC.CreateCompatibleDC(&dc);
 		srcDC.SelectObject(m_pBitmap);
-		memDC.BitBlt(0, 0, client.Width(), client.Height(), &srcDC, 0, 0, SRCCOPY);
 
-		Gdiplus::Graphics graphics(memDC.m_hDC);
+		BITMAP bm = {};
+		m_pBitmap->GetBitmap(&bm);
+		if (bm.bmWidth > 0 && bm.bmHeight > 0 &&
+			(bm.bmWidth != client.Width() || bm.bmHeight != client.Height()))
+		{
+			memDC.SetStretchBltMode(HALFTONE);
+			memDC.StretchBlt(0, 0, client.Width(), client.Height(), &srcDC, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+		}
+		else
+		{
+			memDC.BitBlt(0, 0, client.Width(), client.Height(), &srcDC, 0, 0, SRCCOPY);
+		}
+
 		if (m_bFirstDraw)
 		{
-			DrawDimOverlay(graphics, client, m_rectTracker.m_rect);
+			PaintDimOutsideSelection(memDC, srcDC, client, m_rectTracker.m_rect);
 			m_rectTracker.Draw(&memDC);
 			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty())
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
@@ -282,6 +326,7 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 		{
 			m_rectTracker.Track(this, point, TRUE);
 			SyncAnnotationLayerToSelection();
+			PositionToolBar();
 			InvalidateAroundRect(m_rectTracker.m_rect);
 		}
 	}
@@ -293,7 +338,7 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	m_bLBtnDown = FALSE;
 	m_bDraw = FALSE;
-	m_toolBar.SetShowPlace(m_rectTracker.m_rect.right, m_rectTracker.m_rect.bottom);
+	PositionToolBar();
 	SyncAnnotationLayerToSelection();
 	InvalidateAroundRect(m_rectTracker.m_rect);
 	CDialog::OnLButtonUp(nFlags, point);

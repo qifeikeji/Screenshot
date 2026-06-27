@@ -50,11 +50,13 @@ public:
 	void SyncAnnotationLayerToSelection();
 	void ClearAnnotationLayer();
 	void InvalidateAroundRect(const CRect& area);
+	void PositionToolBar();
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);
 	virtual BOOL OnInitDialog();
 	virtual void OnCancel();
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 
 	afx_msg void OnPaint();
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);

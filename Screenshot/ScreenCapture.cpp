@@ -4,6 +4,7 @@
 struct MonitorEnumCtx
 {
 	RECT bounds;
+	BOOL hasMonitor;
 };
 
 struct CaptureCtx
@@ -16,7 +17,15 @@ struct CaptureCtx
 static BOOL CALLBACK MonitorBoundsProc(HMONITOR, HDC, LPRECT lprc, LPARAM lp)
 {
 	MonitorEnumCtx* ctx = reinterpret_cast<MonitorEnumCtx*>(lp);
-	UnionRect(&ctx->bounds, &ctx->bounds, lprc);
+	if (!ctx->hasMonitor)
+	{
+		ctx->bounds = *lprc;
+		ctx->hasMonitor = TRUE;
+	}
+	else
+	{
+		UnionRect(&ctx->bounds, &ctx->bounds, lprc);
+	}
 	return TRUE;
 }
 
@@ -44,16 +53,24 @@ void QueryVirtualScreen(VirtualScreenInfo* info)
 {
 	if (!info)
 		return;
+
 	MonitorEnumCtx ctx = {};
-	ctx.bounds.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
-	ctx.bounds.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
-	ctx.bounds.right = ctx.bounds.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
-	ctx.bounds.bottom = ctx.bounds.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+	ctx.hasMonitor = FALSE;
 	EnumDisplayMonitors(NULL, NULL, MonitorBoundsProc, reinterpret_cast<LPARAM>(&ctx));
-	info->originX = ctx.bounds.left;
-	info->originY = ctx.bounds.top;
-	info->width = ctx.bounds.right - ctx.bounds.left;
-	info->height = ctx.bounds.bottom - ctx.bounds.top;
+
+	if (ctx.hasMonitor)
+	{
+		info->originX = ctx.bounds.left;
+		info->originY = ctx.bounds.top;
+		info->width = ctx.bounds.right - ctx.bounds.left;
+		info->height = ctx.bounds.bottom - ctx.bounds.top;
+		return;
+	}
+
+	info->originX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+	info->originY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+	info->width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	info->height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 }
 
 HBITMAP CaptureVirtualDesktop(const VirtualScreenInfo& info)
@@ -78,6 +95,9 @@ HBITMAP CaptureVirtualDesktop(const VirtualScreenInfo& info)
 		return NULL;
 	}
 	HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
+
+	RECT fill = { 0, 0, info.width, info.height };
+	FillRect(hMemDC, &fill, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
 	CaptureCtx cap = { hMemDC, info.originX, info.originY };
 	EnumDisplayMonitors(NULL, NULL, MonitorCaptureProc, reinterpret_cast<LPARAM>(&cap));

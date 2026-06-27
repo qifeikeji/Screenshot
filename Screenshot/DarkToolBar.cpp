@@ -2,6 +2,7 @@
 #include "DarkToolBar.h"
 #include <GdiPlus.h>
 #include "resource.h"
+#include "ScreenCapture.h"
 
 using namespace Gdiplus;
 
@@ -65,19 +66,33 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 	return TRUE;
 }
 
-void CDarkToolBar::SetShowPlace(int clientX, int clientY)
+void CDarkToolBar::SetShowPlaceScreen(int screenX, int screenY)
 {
 	if (!m_hWnd)
 		return;
+
 	CRect rc;
 	GetWindowRect(&rc);
-	CWnd* pParent = GetParent();
-	if (pParent)
-	{
-		CPoint pt(clientX, clientY);
-		pParent->ClientToScreen(&pt);
-		SetWindowPos(&wndTop, pt.x - rc.Width(), pt.y + 4, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
-	}
+	const int w = rc.Width();
+	const int h = rc.Height();
+
+	int x = screenX - w;
+	int y = screenY + 4;
+
+	VirtualScreenInfo vsi = {};
+	QueryVirtualScreen(&vsi);
+	const int maxX = vsi.originX + vsi.width - w;
+	const int maxY = vsi.originY + vsi.height - h;
+	if (x < vsi.originX)
+		x = vsi.originX;
+	if (y < vsi.originY)
+		y = vsi.originY;
+	if (x > maxX)
+		x = maxX;
+	if (y > maxY)
+		y = maxY;
+
+	SetWindowPos(&wndTop, x, y, w, h, SWP_SHOWWINDOW);
 }
 
 void CDarkToolBar::ShowBar()

@@ -15,8 +15,8 @@ AppSettings::AppSettings()
 
 void AppSettings::SetDefaults()
 {
-	windowWidth = 300;
-	windowHeight = 120;
+	windowWidth = 280;
+	windowHeight = 88;
 	maskGray = 128;
 	maskOpacity = 39;
 }
@@ -25,7 +25,7 @@ void AppSettings::Clamp()
 {
 	if (windowWidth < 220) windowWidth = 220;
 	if (windowWidth > 800) windowWidth = 800;
-	if (windowHeight < 100) windowHeight = 100;
+	if (windowHeight < 80) windowHeight = 80;
 	if (windowHeight > 600) windowHeight = 600;
 	if (maskGray < 0) maskGray = 0;
 	if (maskGray > 255) maskGray = 255;

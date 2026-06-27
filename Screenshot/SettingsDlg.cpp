@@ -5,8 +5,8 @@
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent)
 	: CDialog(CSettingsDlg::IDD, pParent)
-	, m_width(300)
-	, m_height(120)
+	, m_width(280)
+	, m_height(88)
 	, m_gray(128)
 	, m_opacity(39)
 {

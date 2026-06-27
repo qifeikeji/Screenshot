@@ -9,7 +9,7 @@ public:
 	virtual ~CDarkToolBar();
 
 	BOOL Create(CWnd* pParent);
-	void SetShowPlace(int clientX, int clientY);
+	void SetShowPlaceScreen(int screenX, int screenY);
 	void ShowBar();
 	void HideBar();
 	HWND GetHWND() const { return m_hWnd; }

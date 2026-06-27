@@ -54,8 +54,8 @@ BEGIN
     "#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)\r\n"
     "LANGUAGE 4, 2\r\n"
     "#pragma code_page(936)\r\n"
-    "#include ""res\\Screenshot.rc2""  // 非 Microsoft Visual C++ 编辑的资源\r\n"
-    "#include ""l.CHS\\afxres.rc""      // 标准组件\r\n"
+    "#include ""res\\Screenshot.rc2""  // ?? Microsoft Visual C++ ???????\r\n"
+    "#include ""l.CHS\\afxres.rc""      // ??????\r\n"
     "#endif\r\n"
     "\0"
 END
@@ -77,31 +77,31 @@ IDR_MAINFRAME           ICON                    "res\\Screenshot.ico"
 // Dialog
 //
 
-IDD_SCREENSHOT_DIALOG DIALOGEX 0, 0, 300, 120
+IDD_SCREENSHOT_DIALOG DIALOGEX 0, 0, 280, 88
 STYLE DS_SETFONT | DS_MODALFRAME | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
 CAPTION "Screenshot"
 FONT 9, "Segoe UI", 0, 0, 0x0
 BEGIN
-    PUSHBUTTON      "截图",IDC_BTN_START,24,36,110,36,BS_OWNERDRAW
-    PUSHBUTTON      "设置",IDC_BTN_SETTINGS,166,36,110,36,BS_OWNERDRAW
+    PUSHBUTTON      "截图",IDC_BTN_START,20,22,100,28,BS_OWNERDRAW
+    PUSHBUTTON      "设置",IDC_BTN_SETTINGS,160,22,100,28,BS_OWNERDRAW
 END
 
 IDD_SETTINGS_DIALOG DIALOGEX 0, 0, 280, 200
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "设置"
+CAPTION "????"
 FONT 9, "Segoe UI", 0, 0, 0x0
 BEGIN
-    LTEXT           "窗口宽度",-1,16,18,60,10
+    LTEXT           "???????",-1,16,18,60,10
     EDITTEXT        IDC_EDIT_WIN_W,90,14,60,14,ES_AUTOHSCROLL | ES_NUMBER
-    LTEXT           "窗口高度",-1,16,42,60,10
+    LTEXT           "??????",-1,16,42,60,10
     EDITTEXT        IDC_EDIT_WIN_H,90,38,60,14,ES_AUTOHSCROLL | ES_NUMBER
-    LTEXT           "遮罩灰度 (0-255)",-1,16,72,80,10
+    LTEXT           "?????? (0-255)",-1,16,72,80,10
     EDITTEXT        IDC_EDIT_MASK_GRAY,90,68,60,14,ES_AUTOHSCROLL | ES_NUMBER
-    LTEXT           "遮罩透明度 (0-100)",-1,16,102,90,10
+    LTEXT           "????????? (0-100)",-1,16,102,90,10
     EDITTEXT        IDC_EDIT_MASK_OPACITY,90,98,60,14,ES_AUTOHSCROLL | ES_NUMBER
-    DEFPUSHBUTTON   "确定",IDOK,170,170,50,16
-    PUSHBUTTON      "取消",IDCANCEL,230,170,50,16
+    DEFPUSHBUTTON   "???",IDOK,170,170,50,16
+    PUSHBUTTON      "???",IDCANCEL,230,170,50,16
 END
 
 IDD_DIALOGFORIMG DIALOGEX 0, 0, 169, 140
@@ -135,13 +135,13 @@ BEGIN
     BEGIN
         BLOCK "080403a8"
         BEGIN
-            VALUE "CompanyName", "TODO: <公司名>"
-            VALUE "FileDescription", "TODO: <文件说明>"
+            VALUE "CompanyName", "TODO: <?????>"
+            VALUE "FileDescription", "TODO: <??????>"
             VALUE "FileVersion", "1.0.0.1"
             VALUE "InternalName", "Screenshot.exe"
-            VALUE "LegalCopyright", "TODO: (C) <公司名>。保留所有权利。"
+            VALUE "LegalCopyright", "TODO: (C) <?????>???????????????"
             VALUE "OriginalFilename", "Screenshot.exe"
-            VALUE "ProductName", "TODO: <产品名>"
+            VALUE "ProductName", "TODO: <?????>"
             VALUE "ProductVersion", "1.0.0.1"
         END
     END
@@ -226,8 +226,8 @@ IDC_CURSOR1             CURSOR                  "res\\arrow_m.cur"
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CHS)
 LANGUAGE 4, 2
 #pragma code_page(936)
-#include "res\Screenshot.rc2"  // 非 Microsoft Visual C++ 编辑的资源
-#include "l.CHS\afxres.rc"      // 标准组件
+#include "res\Screenshot.rc2"  // ?? Microsoft Visual C++ ???????
+#include "l.CHS\afxres.rc"      // ??????
 #endif
 
 /////////////////////////////////////////////////////////////////////////////
