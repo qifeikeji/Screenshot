@@ -1,13 +1,26 @@
 #include "stdafx.h"
+#include "Screenshot.h"
 
-// Qt 6 links Qt6EntryPoint (expects main). MFC uses AfxWinMain / theApp.
+// Qt 6 链接 Qt6EntryPoint，需要 main()；MFC 仍由 theApp / AfxWinInit 启动。
 int main(int argc, char* argv[])
 {
 	(void)argc;
 	(void)argv;
+
 #ifdef _UNICODE
-	return AfxWinMain(::GetModuleHandleW(nullptr), nullptr, ::GetCommandLineW(), SW_SHOWDEFAULT);
+	HINSTANCE hInstance = ::GetModuleHandleW(nullptr);
+	LPTSTR lpCmdLine = ::GetCommandLineW();
 #else
-	return AfxWinMain(::GetModuleHandle(nullptr), nullptr, ::GetCommandLineA(), SW_SHOWDEFAULT);
+	HINSTANCE hInstance = ::GetModuleHandleA(nullptr);
+	LPTSTR lpCmdLine = ::GetCommandLineA();
 #endif
+
+	if (!AfxWinInit(hInstance, nullptr, lpCmdLine, SW_SHOWDEFAULT))
+		return 1;
+
+	CWinApp* const pApp = AfxGetApp();
+	if (pApp == nullptr || !pApp->InitInstance())
+		return 1;
+
+	return pApp->ExitInstance();
 }
