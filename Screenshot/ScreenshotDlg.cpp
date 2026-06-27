@@ -176,6 +176,7 @@ BOOL CScreenshotDlg::OnEraseBkgnd(CDC* pDC)
 UINT SccreenShot_Thread(LPVOID lpParam)
 {
 	HWND hWndMain = (HWND)lpParam;
+	::Sleep(80);
 	CCatchScreenDlg dlg;
 	dlg.DoModal();
 	::ShowWindow(hWndMain, SW_SHOW);

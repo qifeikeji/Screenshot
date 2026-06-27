@@ -57,7 +57,7 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 {
 	m_bLBtnDown = FALSE;
 	//????????????,??????resizeMiddle ????
-	m_rectTracker.m_nStyle = CMyTracker::resizeMiddle | CMyTracker::solidLine;
+	m_rectTracker.m_nStyle = CMyTracker::solidLine | CMyTracker::resizeOutside;
 	m_rectTracker.m_rect.SetRect(-1, -2, -3, -4);
 	//??????????
 	m_rectTracker.SetRectColor(RGB(10, 100, 130));
@@ -72,20 +72,15 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_rectPrevDrag.SetRectEmpty();
 
 	VirtualScreenInfo vsi = {};
-	POINT cursor = {};
-	GetCursorPos(&cursor);
-	if (!QueryMonitorAtPoint(cursor, &vsi))
-		QueryVirtualScreen(&vsi);
+	QueryVirtualScreen(&vsi);
 	m_nOriginX = vsi.originX;
 	m_nOriginY = vsi.originY;
 	m_nScreenWidth = vsi.width;
 	m_nScreenHeight = vsi.height;
 
-	m_hBitmap = CaptureScreenRect(vsi);
+	m_hBitmap = CaptureVirtualDesktop(vsi);
 	if (!m_hBitmap)
-	{
-		m_hBitmap = CaptureVirtualDesktop(vsi);
-	}
+		m_hBitmap = CaptureScreenRect(vsi);
 	m_pBitmap = CBitmap::FromHandle(m_hBitmap);
 
 	m_annotationRect.SetRectEmpty();
@@ -174,7 +169,22 @@ BOOL CCatchScreenDlg::OnInitDialog()
 	ModifyStyle(WS_CAPTION | WS_SYSMENU | DS_MODALFRAME | DS_3DLOOK, WS_POPUP);
 	ModifyStyleEx(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE, WS_EX_TOPMOST);
 
-	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, m_nScreenWidth, m_nScreenHeight, SWP_SHOWWINDOW);
+	if (m_pBitmap)
+	{
+		BITMAP bm = {};
+		m_pBitmap->GetBitmap(&bm);
+		if (bm.bmWidth > 0 && bm.bmHeight > 0)
+		{
+			m_nScreenWidth = bm.bmWidth;
+			m_nScreenHeight = bm.bmHeight;
+		}
+	}
+
+	CRect wr(0, 0, m_nScreenWidth, m_nScreenHeight);
+	CalcWindowRect(&wr, CWnd::adjustBorder);
+	const int winW = wr.Width();
+	const int winH = wr.Height();
+	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, winW, winH, SWP_SHOWWINDOW | SWP_NOACTIVATE);
 
 	m_tipEdit.ShowWindow(SW_HIDE);
 
@@ -240,16 +250,12 @@ void CCatchScreenDlg::OnPaint()
 		m_pBitmap->GetBitmap(&bm);
 		const int copyW = min(client.Width(), bm.bmWidth);
 		const int copyH = min(client.Height(), bm.bmHeight);
-		memDC.BitBlt(0, 0, copyW, copyH, &srcDC, 0, 0, SRCCOPY);
-		if (copyW < client.Width() || copyH < client.Height())
-		{
-			CRect fill(copyW, 0, client.Width(), client.Height());
-			if (!fill.IsRectEmpty())
-				memDC.FillSolidRect(&fill, RGB(0, 0, 0));
-			fill.SetRect(0, copyH, client.Width(), client.Height());
-			if (!fill.IsRectEmpty())
-				memDC.FillSolidRect(&fill, RGB(0, 0, 0));
-		}
+		if (copyW > 0 && copyH > 0)
+			memDC.BitBlt(0, 0, copyW, copyH, &srcDC, 0, 0, SRCCOPY);
+		if (copyW < client.Width())
+			memDC.FillSolidRect(copyW, 0, client.Width() - copyW, client.Height(), RGB(0, 0, 0));
+		if (copyH < client.Height())
+			memDC.FillSolidRect(0, copyH, client.Width(), client.Height() - copyH, RGB(0, 0, 0));
 
 		if (m_bFirstDraw)
 		{
@@ -298,17 +304,17 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	m_bLBtnDown = TRUE;
-	int nHitTest;
-	nHitTest = m_rectTracker.HitTest(point);
-	//???????????
-	if (nHitTest < 0)
+	const int nHitTest = m_rectTracker.HitTest(point);
+
+	if (!m_bDraw)
 	{
-		if (!m_bDraw)
+		const bool onResizeHandle = (nHitTest >= CMyTracker::hitTopLeft &&
+			nHitTest <= CMyTracker::hitLeft);
+		if (nHitTest < 0 || nHitTest == CMyTracker::hitMiddle || !onResizeHandle)
+		{
 			BeginSelectionAt(point);
-	}
-	else
-	{
-		if (m_bFirstDraw)
+		}
+		else if (m_bFirstDraw && onResizeHandle)
 		{
 			m_rectTracker.Track(this, point, TRUE);
 			SyncAnnotationLayerToSelection();
