@@ -1,7 +1,14 @@
 #include "stdafx.h"
 #include "SettingsDlg.h"
 #include "AppSettings.h"
-#include "Resource.h"
+#include "resource.h"
+
+#ifndef HKM_SETHOTKEY
+#define HKM_SETHOTKEY (WM_USER + 1)
+#endif
+#ifndef HKM_GETHOTKEY
+#define HKM_GETHOTKEY (WM_USER + 2)
+#endif
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent)
 	: CDialog(CSettingsDlg::IDD, pParent)
@@ -23,19 +30,18 @@ BOOL CSettingsDlg::OnInitDialog()
 	const AppSettings& s = GetAppSettings();
 	m_brBg.CreateSolidBrush(RGB(30, 30, 30));
 
-	CDialog::OnInitDialog();
+	if (!CDialog::OnInitDialog())
+		return FALSE;
+
 	SetWindowText(L"\u8bbe\u7f6e");
 	SetDlgItemText(IDC_STATIC_HOTKEY_LABEL, L"\u622a\u56fe\u5feb\u6377\u952e");
 
-	if (!m_hotKey.SubclassDlgItem(IDC_HOTKEY_SCREENSHOT, this))
-	{
-		AfxMessageBox(L"\u65e0\u6cd5\u521b\u5efa\u5feb\u6377\u952e\u63a7\u4ef6\u3002");
-		return TRUE;
-	}
-
 	WORD hk = 0;
 	HotKeyToHotKeyCtrl(s.hotkeyModifiers, s.hotkeyVk, hk);
-	m_hotKey.SetHotKey(LOBYTE(hk), HIBYTE(hk));
+	if (CWnd* pHot = GetDlgItem(IDC_HOTKEY_SCREENSHOT))
+		pHot->SendMessage(HKM_SETHOTKEY, hk, 0);
+
+	CenterWindow(GetParent());
 	return TRUE;
 }
 
@@ -52,7 +58,14 @@ HBRUSH CSettingsDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 void CSettingsDlg::OnBnClickedOk()
 {
-	DWORD dw = m_hotKey.GetHotKey();
+	CWnd* pHot = GetDlgItem(IDC_HOTKEY_SCREENSHOT);
+	if (!pHot)
+	{
+		CDialog::OnOK();
+		return;
+	}
+
+	const DWORD dw = (DWORD)pHot->SendMessage(HKM_GETHOTKEY, 0, 0);
 	WORD hk = MAKEWORD(LOBYTE(dw), HIBYTE(dw));
 	UINT mod = 0;
 	UINT vk = 0;

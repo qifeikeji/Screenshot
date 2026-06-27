@@ -169,7 +169,9 @@ void CCatchScreenDlg::PositionToolBar()
 {
 	CRect r = m_rectTracker.m_rect;
 	r.NormalizeRect();
-	m_toolBar.SetInsideSelectionClient(r);
+	CRect client;
+	GetClientRect(&client);
+	m_toolBar.SetBelowSelectionClient(r, client);
 }
 
 BOOL CCatchScreenDlg::OnInitDialog()

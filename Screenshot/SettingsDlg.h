@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Resource.h"
+#include "resource.h"
 
 class CSettingsDlg : public CDialog
 {
@@ -18,5 +18,4 @@ protected:
 
 private:
 	CBrush m_brBg;
-	CHotKeyCtrl m_hotKey;
 };

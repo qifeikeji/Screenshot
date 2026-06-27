@@ -68,7 +68,7 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 	return TRUE;
 }
 
-void CDarkToolBar::SetInsideSelectionClient(const CRect& selectionClient)
+void CDarkToolBar::SetBelowSelectionClient(const CRect& selectionClient, const CRect& parentClient)
 {
 	if (!m_hWnd)
 		return;
@@ -82,22 +82,22 @@ void CDarkToolBar::SetInsideSelectionClient(const CRect& selectionClient)
 	const int h = kPadding * 2 + kButtonSize;
 	const int margin = 6;
 
-	int x = sel.right - w - margin;
-	int y = sel.bottom - h - margin;
+	int x = sel.right - w;
+	int y = sel.bottom + margin;
 
-	const int minX = sel.left + margin;
-	const int minY = sel.top + margin;
-	const int maxX = sel.right - w - margin;
-	const int maxY = sel.bottom - h - margin;
-
-	if (x < minX)
-		x = minX;
-	if (y < minY)
-		y = minY;
-	if (maxX >= minX && x > maxX)
-		x = maxX;
-	if (maxY >= minY && y > maxY)
-		y = maxY;
+	if (x < sel.left)
+		x = sel.left;
+	if (!parentClient.IsRectEmpty())
+	{
+		if (x + w > parentClient.right)
+			x = parentClient.right - w;
+		if (x < parentClient.left)
+			x = parentClient.left;
+		if (y + h > parentClient.bottom)
+			y = sel.top - h - margin;
+		if (y < parentClient.top)
+			y = parentClient.top;
+	}
 
 	SetWindowPos(&CWnd::wndTop, x, y, w, h, SWP_NOACTIVATE);
 }
@@ -112,16 +112,27 @@ CRect CDarkToolBar::ButtonRect(int index) const
 	return btn;
 }
 
-void CDarkToolBar::InvalidateButton(int index)
+void CDarkToolBar::InvalidateHoverRegion(int prevIndex, int newIndex)
 {
-	if (index < 0)
+	CRect dirty;
+	if (prevIndex >= 0)
 	{
-		Invalidate();
-		return;
+		dirty = ButtonRect(prevIndex);
+		dirty.InflateRect(2, 2);
 	}
-	CRect btn = ButtonRect(index);
-	btn.InflateRect(1, 1);
-	InvalidateRect(&btn, FALSE);
+	if (newIndex >= 0)
+	{
+		CRect r = ButtonRect(newIndex);
+		r.InflateRect(2, 2);
+		if (dirty.IsRectEmpty())
+			dirty = r;
+		else
+			dirty.UnionRect(&dirty, &r);
+	}
+	if (!dirty.IsRectEmpty())
+		InvalidateRect(&dirty, FALSE);
+	else
+		Invalidate(FALSE);
 }
 
 void CDarkToolBar::ShowBar()
@@ -199,10 +210,19 @@ END_MESSAGE_MAP()
 void CDarkToolBar::OnPaint()
 {
 	CPaintDC dc(this);
-	Graphics g(dc.m_hDC);
-	g.SetSmoothingMode(SmoothingModeAntiAlias);
 	CRect rc;
 	GetClientRect(&rc);
+	if (rc.IsRectEmpty())
+		return;
+
+	CDC memDC;
+	memDC.CreateCompatibleDC(&dc);
+	CBitmap bmp;
+	bmp.CreateCompatibleBitmap(&dc, rc.Width(), rc.Height());
+	CBitmap* pOldBmp = memDC.SelectObject(&bmp);
+
+	Graphics g(memDC.m_hDC);
+	g.SetSmoothingMode(SmoothingModeAntiAlias);
 	GraphicsPath bg;
 	const REAL r = 10.f;
 	bg.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
@@ -220,6 +240,9 @@ void CDarkToolBar::OnPaint()
 		CRect btn = ButtonRect(i);
 		DrawToolButton(g, m_hImageList, btn, i, i == m_hoverIndex, i == m_pressedIndex);
 	}
+
+	dc.BitBlt(0, 0, rc.Width(), rc.Height(), &memDC, 0, 0, SRCCOPY);
+	memDC.SelectObject(pOldBmp);
 }
 
 void CDarkToolBar::OnLButtonDown(UINT nFlags, CPoint point)
@@ -228,7 +251,7 @@ void CDarkToolBar::OnLButtonDown(UINT nFlags, CPoint point)
 	if (hit >= 0 && GetParent())
 	{
 		m_pressedIndex = hit;
-		InvalidateButton(hit);
+		InvalidateHoverRegion(-1, hit);
 		GetParent()->SendMessage(WM_COMMAND, MAKEWPARAM(DarkToolBar_CommandBase + hit, BN_CLICKED),
 			(LPARAM)m_hWnd);
 		m_pressedIndex = -1;
@@ -252,8 +275,7 @@ void CDarkToolBar::OnMouseMove(UINT nFlags, CPoint point)
 	{
 		const int prev = m_hoverIndex;
 		m_hoverIndex = hit;
-		InvalidateButton(prev);
-		InvalidateButton(hit);
+		InvalidateHoverRegion(prev, hit);
 	}
 	CWnd::OnMouseMove(nFlags, point);
 }
@@ -264,7 +286,7 @@ LRESULT CDarkToolBar::OnMouseLeave(WPARAM, LPARAM)
 	const int prev = m_hoverIndex;
 	m_hoverIndex = -1;
 	m_pressedIndex = -1;
-	InvalidateButton(prev);
+	InvalidateHoverRegion(prev, -1);
 	return 0;
 }
 
