@@ -81,6 +81,15 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_hBitmap = CaptureVirtualDesktop(vsi);
 	if (!m_hBitmap)
 		m_hBitmap = CaptureScreenRect(vsi);
+
+	int bmpW = 0;
+	int bmpH = 0;
+	if (m_hBitmap && GetBitmapPixelSize(m_hBitmap, &bmpW, &bmpH))
+	{
+		m_nScreenWidth = bmpW;
+		m_nScreenHeight = bmpH;
+	}
+
 	m_pBitmap = CBitmap::FromHandle(m_hBitmap);
 
 	m_annotationRect.SetRectEmpty();
@@ -151,7 +160,7 @@ void CCatchScreenDlg::BeginSelectionAt(CPoint point)
 	m_bDraw = TRUE;
 	m_bFirstDraw = TRUE;
 	m_bToolBarShown = FALSE;
-	m_rectTracker.m_rect.SetRect(point.x, point.y, point.x + 4, point.y + 4);
+	m_rectTracker.m_rect.SetRect(point.x, point.y, point.x, point.y);
 	InvalidateRect(NULL, FALSE);
 }
 
@@ -171,20 +180,32 @@ BOOL CCatchScreenDlg::OnInitDialog()
 
 	if (m_pBitmap)
 	{
-		BITMAP bm = {};
-		m_pBitmap->GetBitmap(&bm);
-		if (bm.bmWidth > 0 && bm.bmHeight > 0)
+		int bmpW = 0;
+		int bmpH = 0;
+		if (GetBitmapPixelSize(m_hBitmap, &bmpW, &bmpH))
 		{
-			m_nScreenWidth = bm.bmWidth;
-			m_nScreenHeight = bm.bmHeight;
+			m_nScreenWidth = bmpW;
+			m_nScreenHeight = bmpH;
 		}
 	}
 
 	CRect wr(0, 0, m_nScreenWidth, m_nScreenHeight);
 	CalcWindowRect(&wr, CWnd::adjustBorder);
-	const int winW = wr.Width();
-	const int winH = wr.Height();
-	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, winW, winH, SWP_SHOWWINDOW | SWP_NOACTIVATE);
+	SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY, wr.Width(), wr.Height(),
+		SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOZORDER);
+
+	CRect client;
+	GetClientRect(&client);
+	if (client.Width() != m_nScreenWidth || client.Height() != m_nScreenHeight)
+	{
+		CRect winRect;
+		GetWindowRect(&winRect);
+		const int dw = m_nScreenWidth - client.Width();
+		const int dh = m_nScreenHeight - client.Height();
+		SetWindowPos(&wndTopMost, m_nOriginX, m_nOriginY,
+			winRect.Width() + dw, winRect.Height() + dh,
+			SWP_NOACTIVATE | SWP_NOZORDER);
+	}
 
 	m_tipEdit.ShowWindow(SW_HIDE);
 
@@ -200,14 +221,8 @@ BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE)
 	{
 		if (m_bFirstDraw)
-		{
 			CancelCurrentSelection();
-			InvalidateRect(NULL, FALSE);
-		}
-		else
-		{
-			PostQuitMessage(0);
-		}
+		PostQuitMessage(0);
 		return TRUE;
 	}
 	return CDialog::PreTranslateMessage(pMsg);
@@ -248,14 +263,11 @@ void CCatchScreenDlg::OnPaint()
 
 		BITMAP bm = {};
 		m_pBitmap->GetBitmap(&bm);
-		const int copyW = min(client.Width(), bm.bmWidth);
-		const int copyH = min(client.Height(), bm.bmHeight);
+		const int copyW = bm.bmWidth;
+		const int copyH = (bm.bmHeight < 0) ? -bm.bmHeight : bm.bmHeight;
 		if (copyW > 0 && copyH > 0)
-			memDC.BitBlt(0, 0, copyW, copyH, &srcDC, 0, 0, SRCCOPY);
-		if (copyW < client.Width())
-			memDC.FillSolidRect(copyW, 0, client.Width() - copyW, client.Height(), RGB(0, 0, 0));
-		if (copyH < client.Height())
-			memDC.FillSolidRect(0, copyH, client.Width(), client.Height() - copyH, RGB(0, 0, 0));
+			memDC.BitBlt(0, 0, min(client.Width(), copyW), min(client.Height(), copyH),
+				&srcDC, 0, 0, SRCCOPY);
 
 		if (m_bFirstDraw)
 		{
@@ -292,7 +304,7 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 	if (m_bDraw)
 	{
 		CRect prev = m_rectTracker.m_rect;
-		m_rectTracker.m_rect.SetRect(m_startPt.x + 4, m_startPt.y + 4, point.x, point.y);
+		m_rectTracker.m_rect.SetRect(m_startPt.x, m_startPt.y, point.x, point.y);
 		CRect dirty = prev;
 		dirty.UnionRect(&dirty, &m_rectTracker.m_rect);
 		InvalidateAroundRect(dirty);
