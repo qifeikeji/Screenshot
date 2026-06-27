@@ -29,6 +29,7 @@ set(SCREENSHOT_SOURCES
   ${SCREENSHOT_DIR}/qt/MainWindow.cpp
   ${SCREENSHOT_DIR}/qt/SettingsDialog.cpp
   ${SCREENSHOT_DIR}/qt/ScreenshotBridge.cpp
+  ${SCREENSHOT_DIR}/qt/QtMfcMain.cpp
   ${SCREENSHOT_DIR}/Screenshot.rc
 )
 
