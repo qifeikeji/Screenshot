@@ -1,11 +1,11 @@
-# ?? GitHub ?й? Windows ?????б??? MFC ??????????? Run ??? Artifacts ?????
+# 在 GitHub 托管 Windows 环境中编译 MFC 项目，产物在 Run 页面 Artifacts 下载。
 name: Build Windows
 
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: ?????
+        description: 目标平台
         required: true
         default: x64
         type: choice
@@ -13,7 +13,7 @@ on:
           - x64
           - Win32
       configuration:
-        description: ????????
+        description: 编译配置
         required: true
         default: Release
         type: choice
@@ -23,36 +23,32 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
-    timeout-minutes: 60
+    # 镜像已含 VS2022 Enterprise + VC.ATLMFC，无需再 modify 安装 MFC
+    runs-on: windows-2022
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install MFC (Desktop C++ workload component)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $installPath = & $vswhere -latest -requires Microsoft.Component.MSBuild -property installationPath
-          if (-not $installPath) { throw 'Visual Studio installation not found on runner.' }
-          $setup = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
-          $args = @(
-            'modify',
-            '--installPath', $installPath,
-            '--add', 'Microsoft.VisualStudio.Component.VC.MFC',
-            '--add', 'Microsoft.VisualStudio.Component.VC.ATL',
-            '--quiet', '--wait', '--norestart'
-          )
-          Write-Host "Installing MFC components (may take several minutes)..."
-          $p = Start-Process -FilePath $setup -ArgumentList $args -PassThru -Wait
-          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
-            throw "VS installer exited with code $($p.ExitCode)"
-          }
+      - name: Setup MSVC (MFC)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ inputs.platform == 'x64' && 'x64' || 'x86' }}
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+
+      - name: Verify MFC headers
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installPath = & $vswhere -latest -property installationPath
+          $afx = Get-ChildItem -Path $installPath -Recurse -Filter 'afxwin.h' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $afx) {
+            throw 'MFC headers (afxwin.h) not found. Runner image may have changed; open an issue.'
+          }
+          Write-Host "Found MFC: $($afx.FullName)"
 
       - name: Build solution
         shell: pwsh
