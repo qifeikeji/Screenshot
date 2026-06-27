@@ -395,7 +395,7 @@ void CMyTracker::DrawTrackerRect(
 		// otherwise, size depends on the style
 		if (m_nStyle & hatchedBorder)
 		{
-			size.cx = size.cy = max(1, GetHandleSize(rect)-1);
+			size.cx = size.cy = std::max(1, GetHandleSize(rect)-1);
 			rect.InflateRect(size);
 		}
 		else
@@ -533,7 +533,7 @@ int CMyTracker::GetHandleSize(LPCRECT lpRect) const
 	if (!(m_nStyle & resizeOutside))
 	{
 		// make sure size is small enough for the size of the rect
-		int sizeMax = min(abs(lpRect->right - lpRect->left),
+		int sizeMax = std::min(abs(lpRect->right - lpRect->left),
 			abs(lpRect->bottom - lpRect->top));
 		if (size * 2 > sizeMax)
 			size = sizeMax / 2;

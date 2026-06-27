@@ -55,7 +55,7 @@ void CDarkMacInputHost::OnPaint()
 	Graphics g(dc.m_hDC);
 	g.SetSmoothingMode(SmoothingModeAntiAlias);
 	GraphicsPath path;
-	const REAL r = min(8.f, (REAL)min(rc.Width(), rc.Height()) / 2.f);
+	const REAL r = std::min(8.f, (REAL)std::min(rc.Width(), rc.Height()) / 2.f);
 	path.AddArc((REAL)rc.left, (REAL)rc.top, r * 2, r * 2, 180, 90);
 	path.AddArc((REAL)rc.right - r * 2, (REAL)rc.top, r * 2, r * 2, 270, 90);
 	path.AddArc((REAL)rc.right - r * 2, (REAL)rc.bottom - r * 2, r * 2, r * 2, 0, 90);

@@ -327,7 +327,7 @@ void CCatchScreenDlg::OnPaint()
 		const int copyW = bm.bmWidth;
 		const int copyH = (bm.bmHeight < 0) ? -bm.bmHeight : bm.bmHeight;
 		if (copyW > 0 && copyH > 0)
-			memDC.BitBlt(0, 0, min(client.Width(), copyW), min(client.Height(), copyH),
+			memDC.BitBlt(0, 0, std::min(client.Width(), copyW), std::min(client.Height(), copyH),
 				&srcDC, 0, 0, SRCCOPY);
 
 		if (m_bFirstDraw || m_bDraw)

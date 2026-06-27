@@ -115,7 +115,7 @@ void CDarkButton::DrawButton(CDC& dc, const CRect& rc, bool hover, bool pressed)
 		fill = m_accent ? Color(255, 38, 148, 255) : Color(255, 72, 72, 74);
 
 	GraphicsPath path;
-	const REAL r = (REAL)min(radius, min(drawRc.Width(), drawRc.Height()) / 2);
+	const REAL r = (REAL)std::min(radius, std::min(drawRc.Width(), drawRc.Height()) / 2);
 	path.AddArc((REAL)drawRc.left, (REAL)drawRc.top, r * 2, r * 2, 180, 90);
 	path.AddArc((REAL)drawRc.right - r * 2, (REAL)drawRc.top, r * 2, r * 2, 270, 90);
 	path.AddArc((REAL)drawRc.right - r * 2, (REAL)drawRc.bottom - r * 2, r * 2, r * 2, 0, 90);
