@@ -11,29 +11,52 @@
 #include <QStyleFactory>
 #include <QColor>
 
-static UINT ScreenshotCaptureThreadProc(LPVOID hwndMain)
+#include <QColor>
+
+namespace {
+
+struct ScreenshotCaptureParams
 {
+	HWND hwndMain = NULL;
+	BOOL restoreMainWindowVisible = FALSE;
+};
+
+static UINT ScreenshotCaptureThreadProc(LPVOID param)
+{
+	ScreenshotCaptureParams* ctx = reinterpret_cast<ScreenshotCaptureParams*>(param);
 	::Sleep(80);
 	CCatchScreenDlg dlg;
 	dlg.DoModal();
-	const HWND hwnd = (HWND)hwndMain;
-	if (hwnd && ::IsWindow(hwnd))
-		::ShowWindow(hwnd, SW_SHOW);
+	if (ctx)
+	{
+		const HWND hwnd = ctx->hwndMain;
+		if (hwnd && ::IsWindow(hwnd) && ctx->restoreMainWindowVisible)
+			::ShowWindow(hwnd, SW_SHOW);
+		delete ctx;
+	}
 	return 0;
 }
+
+} // namespace
 
 void StartScreenshotCapture(HWND mainWindowHwnd)
 {
 	if (!mainWindowHwnd || !::IsWindow(mainWindowHwnd))
 		return;
-	if (!::IsWindowVisible(mainWindowHwnd))
-		return;
 
 	POINT cursor = {};
 	::GetCursorPos(&cursor);
 	SetCaptureCursorAnchor(cursor);
-	::ShowWindow(mainWindowHwnd, SW_HIDE);
-	AfxBeginThread(ScreenshotCaptureThreadProc, (LPVOID)mainWindowHwnd);
+
+	const BOOL wasVisible = ::IsWindowVisible(mainWindowHwnd);
+	if (wasVisible)
+		::ShowWindow(mainWindowHwnd, SW_HIDE);
+
+	auto* ctx = new ScreenshotCaptureParams();
+	ctx->hwndMain = mainWindowHwnd;
+	ctx->restoreMainWindowVisible = wasVisible;
+
+	AfxBeginThread(ScreenshotCaptureThreadProc, ctx);
 }
 
 void RegisterGlobalScreenshotHotKey(HWND hwnd, UINT id)

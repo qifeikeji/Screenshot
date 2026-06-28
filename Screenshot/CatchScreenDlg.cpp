@@ -98,14 +98,6 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 		if (!m_hBitmap)
 			m_hBitmap = CaptureVirtualDesktop(vsi);
 	}
-	else if (HasMixedMonitorScaling())
-	{
-		if (!QueryMonitorAtPoint(cursor, &vsi))
-			QueryVirtualScreen(&vsi);
-		m_hBitmap = CaptureScreenRect(vsi);
-		if (!m_hBitmap)
-			m_hBitmap = CaptureVirtualDesktop(vsi);
-	}
 	else
 	{
 		QueryVirtualScreen(&vsi);

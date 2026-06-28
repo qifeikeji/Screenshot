@@ -228,8 +228,6 @@ void MainWindow::showEvent(QShowEvent* event)
 
 void MainWindow::onScreenshot()
 {
-	if (!isVisible())
-		showFromTray();
 	StartScreenshotCapture(reinterpret_cast<HWND>(winId()));
 }
 
