@@ -508,6 +508,8 @@ void CCatchScreenDlg::OnPaint()
 			memDC.BitBlt(0, 0, std::min(client.Width(), copyW), std::min(client.Height(), copyH),
 				&srcDC, 0, 0, SRCCOPY);
 
+		DrawSelectionDimOverlay(memDC.m_hDC, client);
+
 		if (m_bFirstDraw || m_bDraw)
 		{
 			m_rectTracker.Draw(&memDC);
@@ -955,6 +957,50 @@ void CCatchScreenDlg::InvalidateAnnotationView()
 		return;
 	r.InflateRect(2, 2);
 	InvalidateRect(&r, FALSE);
+}
+
+void CCatchScreenDlg::DrawSelectionDimOverlay(HDC hdc, const CRect& client) const
+{
+	if (client.IsRectEmpty())
+		return;
+
+	CRect hole = m_rectTracker.m_rect;
+	hole.NormalizeRect();
+	const bool hasHole = (m_bDraw || HasValidSelection()) &&
+		hole.Width() > 0 && hole.Height() > 0;
+
+	Gdiplus::Graphics g(hdc);
+	g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+	Gdiplus::SolidBrush dim(Gdiplus::Color(150, 0, 0, 0));
+
+	const auto fillRect = [&g, &dim](int left, int top, int width, int height) {
+		if (width <= 0 || height <= 0)
+			return;
+		g.FillRectangle(&dim, (Gdiplus::REAL)left, (Gdiplus::REAL)top,
+			(Gdiplus::REAL)width, (Gdiplus::REAL)height);
+	};
+
+	if (!hasHole)
+	{
+		fillRect(client.left, client.top, client.Width(), client.Height());
+		return;
+	}
+
+	CRect clip = hole;
+	if (!clip.IntersectRect(&clip, &client))
+	{
+		fillRect(client.left, client.top, client.Width(), client.Height());
+		return;
+	}
+
+	fillRect(client.left, client.top, client.Width(), clip.top - client.top);
+	fillRect(client.left, clip.bottom, client.Width(), client.bottom - clip.bottom);
+
+	const int midTop = std::max(client.top, clip.top);
+	const int midBottom = std::min(client.bottom, clip.bottom);
+	const int midHeight = midBottom - midTop;
+	fillRect(client.left, midTop, clip.left - client.left, midHeight);
+	fillRect(clip.right, midTop, client.right - clip.right, midHeight);
 }
 
 void CCatchScreenDlg::DrawSelectionSizeLabels(CDC& dc)

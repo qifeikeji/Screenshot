@@ -110,6 +110,7 @@ public:
 	void InvalidateAnnotationView();
 	void DrawPreviewShape(HDC hdc) const;
 	void DrawSelectionSizeLabels(CDC& dc);
+	void DrawSelectionDimOverlay(HDC hdc, const CRect& client) const;
 	BOOL PromptAnnotText(CString& text);
 	void FinishSelectionIfValid(const CPoint& endPt);
 	void OpenSaveFolder();
