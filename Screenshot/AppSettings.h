@@ -11,6 +11,7 @@ struct AppSettings
 	BOOL singleMonitorCapture;
 	BOOL launchAtStartup;
 	BOOL startMinimizedToTaskbar;
+	BOOL closeHidesToNotificationArea;
 	CString saveDirectory;
 
 	AppSettings();

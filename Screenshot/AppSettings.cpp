@@ -25,6 +25,7 @@ void AppSettings::SetDefaults()
 	singleMonitorCapture = FALSE;
 	launchAtStartup = FALSE;
 	startMinimizedToTaskbar = FALSE;
+	closeHidesToNotificationArea = FALSE;
 	saveDirectory.Empty();
 }
 
@@ -176,6 +177,8 @@ BOOL AppSettings::Load()
 	singleMonitorCapture = ParseJsonBool(json, _T("singleMonitorCapture"), singleMonitorCapture);
 	launchAtStartup = ParseJsonBool(json, _T("launchAtStartup"), launchAtStartup);
 	startMinimizedToTaskbar = ParseJsonBool(json, _T("startMinimizedToTaskbar"), startMinimizedToTaskbar);
+	closeHidesToNotificationArea = ParseJsonBool(json, _T("closeHidesToNotificationArea"),
+		closeHidesToNotificationArea);
 	saveDirectory = ParseJsonString(json, _T("saveDirectory"), saveDirectory);
 	Clamp();
 	ApplyLaunchAtStartupSetting(launchAtStartup);
@@ -199,6 +202,7 @@ BOOL AppSettings::Save() const
 		_T("  \"singleMonitorCapture\": %s,\r\n")
 		_T("  \"launchAtStartup\": %s,\r\n")
 		_T("  \"startMinimizedToTaskbar\": %s,\r\n")
+		_T("  \"closeHidesToNotificationArea\": %s,\r\n")
 		_T("  \"saveDirectory\": \"%s\"\r\n")
 		_T("}\r\n"),
 		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk,
@@ -207,6 +211,7 @@ BOOL AppSettings::Save() const
 		temp.singleMonitorCapture ? _T("true") : _T("false"),
 		temp.launchAtStartup ? _T("true") : _T("false"),
 		temp.startMinimizedToTaskbar ? _T("true") : _T("false"),
+		temp.closeHidesToNotificationArea ? _T("true") : _T("false"),
 		(LPCTSTR)JsonEscape(temp.saveDirectory));
 
 	try

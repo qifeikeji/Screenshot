@@ -26,4 +26,5 @@ private:
 	QCheckBox* m_checkSingleMonitor = nullptr;
 	QCheckBox* m_checkLaunchAtStartup = nullptr;
 	QCheckBox* m_checkStartMinimized = nullptr;
+	QCheckBox* m_checkCloseToTray = nullptr;
 };

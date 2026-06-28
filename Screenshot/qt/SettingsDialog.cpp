@@ -117,9 +117,14 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 	layout->addWidget(m_checkLaunchAtStartup);
 
 	m_checkStartMinimized = new QCheckBox(
-		QStringLiteral("\u542f\u52a8\u65f6\u9690\u85cf\u5230\u901a\u77e5\u533a\u57df\uff08\u5173\u95ed\u7a97\u53e3\u540c\u6837\u9690\u85cf\uff0c\u53cc\u51fb\u6258\u76d8\u6062\u590d\uff09"), this);
+		QStringLiteral("\u542f\u52a8\u65f6\u9690\u85cf\u5230\u901a\u77e5\u533a\u57df\uff08\u53cc\u51fb\u6258\u76d8\u56fe\u6807\u53ef\u6253\u5f00\u4e3b\u7a97\u53e3\uff09"), this);
 	m_checkStartMinimized->setChecked(s.startMinimizedToTaskbar != FALSE);
 	layout->addWidget(m_checkStartMinimized);
+
+	m_checkCloseToTray = new QCheckBox(
+		QStringLiteral("\u5173\u95ed\u7a97\u53e3\u9690\u85cf\u5230\u901a\u77e5\u533a\u57df"), this);
+	m_checkCloseToTray->setChecked(s.closeHidesToNotificationArea != FALSE);
+	layout->addWidget(m_checkCloseToTray);
 
 	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 	auto* openFolderBtn = new QPushButton(QStringLiteral("\u6253\u5f00\u6587\u4ef6\u5939"), this);
@@ -170,6 +175,7 @@ void SettingsDialog::onAccept()
 	cfg.singleMonitorCapture = m_checkSingleMonitor->isChecked() ? TRUE : FALSE;
 	cfg.launchAtStartup = m_checkLaunchAtStartup->isChecked() ? TRUE : FALSE;
 	cfg.startMinimizedToTaskbar = m_checkStartMinimized->isChecked() ? TRUE : FALSE;
+	cfg.closeHidesToNotificationArea = m_checkCloseToTray->isChecked() ? TRUE : FALSE;
 	cfg.saveDirectory = QStringToCString(m_saveDirEdit->text().trimmed());
 	cfg.Clamp();
 	cfg.Save();

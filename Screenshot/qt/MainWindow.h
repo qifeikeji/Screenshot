@@ -38,7 +38,8 @@ private:
 	void registerHotKey();
 	void unregisterHotKey();
 	void setupTrayIcon();
-	bool useSystemTrayBehavior() const;
+	bool hideToTrayOnStartup() const;
+	bool hideToTrayOnClose() const;
 
 	QPushButton* m_btnScreenshot = nullptr;
 	QPushButton* m_btnSettings = nullptr;

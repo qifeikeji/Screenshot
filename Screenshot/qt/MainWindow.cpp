@@ -49,7 +49,7 @@ MainWindow::MainWindow(QWidget* parent)
 	setupTrayIcon();
 	applySizeFromSettings();
 
-	if (useSystemTrayBehavior())
+	if (hideToTrayOnStartup())
 		m_startupTrayPending = true;
 }
 
@@ -60,9 +60,15 @@ MainWindow::~MainWindow()
 		m_trayIcon->hide();
 }
 
-bool MainWindow::useSystemTrayBehavior() const
+bool MainWindow::hideToTrayOnStartup() const
 {
 	return GetAppSettings().startMinimizedToTaskbar != FALSE;
+}
+
+bool MainWindow::hideToTrayOnClose() const
+{
+	const AppSettings& s = GetAppSettings();
+	return s.startMinimizedToTaskbar != FALSE || s.closeHidesToNotificationArea != FALSE;
 }
 
 void MainWindow::setupTrayIcon()
@@ -158,7 +164,7 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-	if (useSystemTrayBehavior() && m_trayReady)
+	if (hideToTrayOnClose() && m_trayReady)
 	{
 		event->ignore();
 		hide();
@@ -187,7 +193,7 @@ void MainWindow::showEvent(QShowEvent* event)
 	QWidget::showEvent(event);
 	registerHotKey();
 
-	if (m_startupTrayPending && useSystemTrayBehavior())
+	if (m_startupTrayPending && hideToTrayOnStartup())
 	{
 		m_startupTrayPending = false;
 		QTimer::singleShot(0, this, [this]() {
