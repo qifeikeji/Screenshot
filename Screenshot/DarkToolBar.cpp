@@ -197,6 +197,7 @@ void DrawToolButton(Gdiplus::Graphics& g, HIMAGELIST imageList, const CRect& rc,
 BEGIN_MESSAGE_MAP(CDarkToolBar, CWnd)
 	ON_WM_PAINT()
 	ON_WM_LBUTTONDOWN()
+	ON_WM_LBUTTONUP()
 	ON_WM_MOUSEMOVE()
 	ON_MESSAGE(WM_MOUSELEAVE, &CDarkToolBar::OnMouseLeave)
 	ON_WM_ERASEBKGND()
@@ -234,16 +235,27 @@ void CDarkToolBar::OnPaint()
 	memDC.SelectObject(pOldBmp);
 }
 
+void CDarkToolBar::OnLButtonUp(UINT nFlags, CPoint point)
+{
+	const int hit = m_pressedIndex;
+	if (hit < 0)
+		hit = HitTest(point);
+	if (hit >= 0 && GetParent())
+	{
+		GetParent()->SendMessage(WM_COMMAND, MAKEWPARAM(DarkToolBar_CommandBase + hit, BN_CLICKED),
+			(LPARAM)m_hWnd);
+	}
+	m_pressedIndex = -1;
+	CWnd::OnLButtonUp(nFlags, point);
+}
+
 void CDarkToolBar::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	int hit = HitTest(point);
-	if (hit >= 0 && GetParent())
+	if (hit >= 0)
 	{
 		m_pressedIndex = hit;
 		InvalidateHoverRegion(-1, hit);
-		GetParent()->SendMessage(WM_COMMAND, MAKEWPARAM(DarkToolBar_CommandBase + hit, BN_CLICKED),
-			(LPARAM)m_hWnd);
-		m_pressedIndex = -1;
 	}
 	CWnd::OnLButtonDown(nFlags, point);
 }

@@ -220,6 +220,7 @@ void CCatchScreenDlg::CancelCurrentSelection()
 	m_bAnnotating = FALSE;
 	m_activeTool = AnnotToolNone;
 	m_previewRect.SetRectEmpty();
+	m_bPendingReselect = FALSE;
 	m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
 	ClearAnnotationLayer();
 	ClearTextOverlay();
@@ -275,9 +276,7 @@ BOOL CCatchScreenDlg::PerformEditUndo()
 	m_dragTextIndex = -1;
 
 	if (s.hAnnot && s.annotCx > 0 && s.annotCy > 0)
-	{
 		m_annotation.ApplySnapshot(s.hAnnot, s.annotCx, s.annotCy);
-	}
 	else
 	{
 		if (s.hAnnot)
@@ -403,9 +402,7 @@ BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE)
 	{
-		if (m_bFirstDraw)
-			CancelCurrentSelection();
-		PostQuitMessage(0);
+		OnCancel();
 		return TRUE;
 	}
 
@@ -603,15 +600,12 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	if (m_editingTextIndex >= 0)
 	{
 		TextAnnotBlock* pEdit = m_textOverlay.At((size_t)m_editingTextIndex);
-		if (!pEdit || !pEdit->rect.PtInRect(point))
+		if (pEdit && pEdit->rect.PtInRect(point))
 		{
-			EndTextEdit(TRUE);
-			m_bLBtnDown = FALSE;
 			CDialog::OnLButtonDown(nFlags, point);
 			return;
 		}
-		CDialog::OnLButtonDown(nFlags, point);
-		return;
+		EndTextEdit(TRUE);
 	}
 
 	const int textHit = m_textOverlay.HitTest(point);
@@ -652,7 +646,8 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 				m_annotStart = local;
 				m_annotLast = local;
 				m_previewRect.SetRect(local.x, local.y, local.x, local.y);
-				PushEditUndoSnapshot();
+				if (m_activeTool == AnnotToolBrush)
+					PushEditUndoSnapshot();
 				SetCapture();
 			}
 		}
@@ -728,16 +723,19 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else if (m_activeTool == AnnotToolArrow)
 			{
+				PushEditUndoSnapshot();
 				m_annotation.DrawArrow(m_annotStart.x, m_annotStart.y, local.x, local.y,
 					kAnnotPenWidth, kAnnotColor);
 			}
 			else if (m_activeTool == AnnotToolRect)
 			{
+				PushEditUndoSnapshot();
 				m_annotation.DrawRectangle(m_annotStart.x, m_annotStart.y, local.x, local.y,
 					kAnnotPenWidth, kAnnotColor, FALSE);
 			}
 			else if (m_activeTool == AnnotToolEllipse)
 			{
+				PushEditUndoSnapshot();
 				m_annotation.DrawEllipse(m_annotStart.x, m_annotStart.y, local.x, local.y,
 					kAnnotPenWidth, kAnnotColor, FALSE);
 			}
@@ -1436,8 +1434,9 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 			OpenSaveFolder();
 			break;
 		case DarkToolBar_CommandBase + 8:
-			CancelCurrentSelection();
-			InvalidateRect(NULL, FALSE);
+			if (m_editingTextIndex >= 0)
+				EndTextEdit(TRUE);
+			OnCancel();
 			break;
 		case DarkToolBar_CommandBase + 9:
 			if (m_editingTextIndex >= 0)
