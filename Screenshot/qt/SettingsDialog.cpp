@@ -111,7 +111,8 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 	m_checkLaunchAtStartup->setChecked(s.launchAtStartup != FALSE);
 	layout->addWidget(m_checkLaunchAtStartup);
 
-	m_checkStartMinimized = new QCheckBox(QStringLiteral("\u542f\u52a8\u65f6\u6700\u5c0f\u5316\u5230\u4efb\u52a1\u680f"), this);
+	m_checkStartMinimized = new QCheckBox(
+		QStringLiteral("\u542f\u52a8\u65f6\u9690\u85cf\u5230\u901a\u77e5\u533a\u57df\uff08\u5173\u95ed\u7a97\u53e3\u540c\u6837\u9690\u85cf\uff0c\u53cc\u51fb\u6258\u76d8\u6062\u590d\uff09"), this);
 	m_checkStartMinimized->setChecked(s.startMinimizedToTaskbar != FALSE);
 	layout->addWidget(m_checkStartMinimized);
 

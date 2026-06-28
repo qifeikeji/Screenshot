@@ -3,9 +3,11 @@
 #include <QWidget>
 
 class QCloseEvent;
+class QMenu;
 class QPushButton;
 class QResizeEvent;
 class QShowEvent;
+class QSystemTrayIcon;
 
 class MainWindow : public QWidget
 {
@@ -26,13 +28,21 @@ protected:
 private slots:
 	void onScreenshot();
 	void onSettings();
+	void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
+	void showFromTray();
 
 private:
 	void applySizeFromSettings();
 	void saveSizeToSettings();
 	void registerHotKey();
 	void unregisterHotKey();
+	void setupTrayIcon();
+	bool useSystemTrayBehavior() const;
 
 	QPushButton* m_btnScreenshot = nullptr;
 	QPushButton* m_btnSettings = nullptr;
+	QSystemTrayIcon* m_trayIcon = nullptr;
+	QMenu* m_trayMenu = nullptr;
+	bool m_trayReady = false;
+	bool m_startupTrayPending = false;
 };

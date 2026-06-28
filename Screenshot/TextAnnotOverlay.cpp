@@ -34,9 +34,30 @@ int CTextAnnotOverlay::HitTest(CPoint clientPt) const
 {
 	for (int i = (int)m_blocks.size() - 1; i >= 0; --i)
 	{
+		if (DragHandleRect(m_blocks[(size_t)i].rect).PtInRect(clientPt))
+			continue;
 		CRect r = m_blocks[(size_t)i].rect;
 		r.NormalizeRect();
 		if (r.PtInRect(clientPt))
+			return i;
+	}
+	return -1;
+}
+
+CRect CTextAnnotOverlay::DragHandleRect(const CRect& boxRect)
+{
+	CRect box = boxRect;
+	box.NormalizeRect();
+	const int cx = (box.left + box.right) / 2;
+	const int cy = box.top - 8;
+	return CRect(cx - 5, cy - 5, cx + 6, cy + 6);
+}
+
+int CTextAnnotOverlay::HitTestDragHandle(CPoint clientPt) const
+{
+	for (int i = (int)m_blocks.size() - 1; i >= 0; --i)
+	{
+		if (DragHandleRect(m_blocks[(size_t)i].rect).PtInRect(clientPt))
 			return i;
 	}
 	return -1;
@@ -61,6 +82,18 @@ CRect CTextAnnotOverlay::MakeCenteredBox(const CRect& selectionClient, size_t st
 		sel.left + (sel.Width() + kDefaultBoxW) / 2 + off,
 		sel.top + (sel.Height() + kDefaultBoxH) / 2 + off);
 	return box;
+}
+
+CRect CTextAnnotOverlay::MakeBoxAtPoint(CPoint clientPt, size_t stackIndex) const
+{
+	const int off = (int)stackIndex * 10;
+	const int halfW = kDefaultBoxW / 2;
+	const int halfH = kDefaultBoxH / 2;
+	return CRect(
+		clientPt.x - halfW + off,
+		clientPt.y - halfH + off,
+		clientPt.x + halfW + off,
+		clientPt.y + halfH + off);
 }
 
 void CTextAnnotOverlay::MeasureAndResizeBlock(TextAnnotBlock& block, int maxWrapWidth, CFont* pFont) const

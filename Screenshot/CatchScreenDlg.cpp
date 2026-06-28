@@ -374,6 +374,7 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 		TextAnnotBlock* p = m_textOverlay.At((size_t)m_dragTextIndex);
 		if (p)
 		{
+			CRect old = p->rect;
 			const int w = p->rect.Width();
 			const int h = p->rect.Height();
 			p->rect.SetRect(
@@ -382,8 +383,11 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 				point.x - m_dragTextGrabOffset.x + w,
 				point.y - m_dragTextGrabOffset.y + h);
 			if (m_editingTextIndex == m_dragTextIndex)
-				UpdateTextBlockSizeFromEdit(m_editingTextIndex);
-			InvalidateAroundRect(p->rect);
+				m_inlineTextEdit.MoveWindow(&p->rect, FALSE);
+			CRect dirty = old;
+			dirty.UnionRect(&dirty, &p->rect);
+			dirty.UnionRect(&dirty, CTextAnnotOverlay::DragHandleRect(p->rect));
+			InvalidateAroundRect(dirty);
 		}
 		CDialog::OnMouseMove(nFlags, point);
 		return;
@@ -439,6 +443,20 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	m_bLBtnDown = TRUE;
 	const int nHitTest = m_rectTracker.HitTest(point);
 
+	const int handleHit = m_textOverlay.HitTestDragHandle(point);
+	if (m_bFirstDraw && !m_bDraw && handleHit >= 0)
+	{
+		m_dragTextIndex = handleHit;
+		TextAnnotBlock* p = m_textOverlay.At((size_t)handleHit);
+		if (p)
+		{
+			m_dragTextGrabOffset = point - p->rect.TopLeft();
+			SetCapture();
+		}
+		CDialog::OnLButtonDown(nFlags, point);
+		return;
+	}
+
 	if (m_editingTextIndex >= 0)
 	{
 		TextAnnotBlock* pEdit = m_textOverlay.At((size_t)m_editingTextIndex);
@@ -449,10 +467,12 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 			CDialog::OnLButtonDown(nFlags, point);
 			return;
 		}
+		CDialog::OnLButtonDown(nFlags, point);
+		return;
 	}
 
 	const int textHit = m_textOverlay.HitTest(point);
-	if (m_bFirstDraw && !m_bDraw && textHit >= 0 && m_editingTextIndex < 0)
+	if (m_bFirstDraw && !m_bDraw && textHit >= 0)
 	{
 		m_dragTextIndex = textHit;
 		TextAnnotBlock* p = m_textOverlay.At((size_t)textHit);
@@ -468,7 +488,7 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	if (m_bFirstDraw && !m_bDraw && m_activeTool == AnnotToolText && IsPointInSelection(point))
 	{
 		SyncAnnotationLayerToSelection();
-		CRect box = m_textOverlay.MakeCenteredBox(m_rectTracker.m_rect, m_textOverlay.Count());
+		CRect box = m_textOverlay.MakeBoxAtPoint(point, m_textOverlay.Count());
 		m_textOverlay.AddBlock(box, _T("\u6587\u672c"));
 		BeginTextEdit((int)m_textOverlay.Count() - 1);
 		InvalidateAroundRect(box);
@@ -861,6 +881,13 @@ void CCatchScreenDlg::DrawTextOverlay(CDC& dc) const
 		dc.Rectangle(r);
 		dc.SelectObject(pOldBrush);
 		dc.SelectObject(pOldPen);
+
+		CRect handle = CTextAnnotOverlay::DragHandleRect(r);
+		CBrush handleBrush(kTextBorderColor);
+		CBrush* pOldHandleBrush = dc.SelectObject(&handleBrush);
+		dc.Ellipse(handle);
+		dc.SelectObject(pOldHandleBrush);
+
 		if (!p->text.IsEmpty())
 		{
 			CRect textRc = r;
@@ -872,33 +899,71 @@ void CCatchScreenDlg::DrawTextOverlay(CDC& dc) const
 			dc.SelectObject(pOldFont);
 		}
 	}
+
+	if (m_editingTextIndex >= 0)
+	{
+		const TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
+		if (p)
+		{
+			CRect r = p->rect;
+			CPen pen(PS_SOLID, 2, kTextBorderColor);
+			CPen* pOldPen = dc.SelectObject(&pen);
+			CBrush* pOldBrush = (CBrush*)dc.SelectStockObject(NULL_BRUSH);
+			dc.Rectangle(r);
+			dc.SelectObject(pOldBrush);
+			dc.SelectObject(pOldPen);
+			CRect handle = CTextAnnotOverlay::DragHandleRect(r);
+			CBrush handleBrush(kTextBorderColor);
+			CBrush* pOldHandleBrush = dc.SelectObject(&handleBrush);
+			dc.Ellipse(handle);
+			dc.SelectObject(pOldHandleBrush);
+		}
+	}
 }
 
 void CCatchScreenDlg::CompositeTextOverlay(HDC hdc, const CRect& selectionClient) const
 {
 	CRect sel = selectionClient;
 	sel.NormalizeRect();
+
+	Graphics g(hdc);
+	g.SetSmoothingMode(SmoothingModeAntiAlias);
+	g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
+
+	FontFamily ff(L"Segoe UI");
+	Font font(&ff, 16.f, FontStyleRegular, UnitPixel);
+	const Color borderColor(255, GetRValue(kTextBorderColor), GetGValue(kTextBorderColor), GetBValue(kTextBorderColor));
+	const Color textColor(255, GetRValue(kAnnotColor), GetGValue(kAnnotColor), GetBValue(kAnnotColor));
+	Pen borderPen(borderColor, 2.f);
+	SolidBrush textBrush(textColor);
+	SolidBrush handleBrush(borderColor);
+
 	for (size_t i = 0; i < m_textOverlay.Count(); ++i)
 	{
 		const TextAnnotBlock* p = m_textOverlay.At(i);
-		if (!p || p->text.IsEmpty())
+		if (!p)
 			continue;
+
+		CString drawText = p->text;
+		if (drawText.IsEmpty())
+			continue;
+
 		CRect r = p->rect;
 		r.OffsetRect(-sel.left, -sel.top);
-		CPen pen(PS_SOLID, 2, kTextBorderColor);
-		HPEN hOldPen = (HPEN)SelectObject(hdc, pen.GetSafeHandle());
-		HGDIOBJ hOldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
-		Rectangle(hdc, r.left, r.top, r.right, r.bottom);
-		SelectObject(hdc, hOldBrush);
-		SelectObject(hdc, hOldPen);
+		r.NormalizeRect();
+
+		g.DrawRectangle(&borderPen, (INT)r.left, (INT)r.top, (INT)r.Width(), (INT)r.Height());
+
+		CRect handle = CTextAnnotOverlay::DragHandleRect(r);
+		g.FillEllipse(&handleBrush, (REAL)handle.left, (REAL)handle.top, (REAL)handle.Width(), (REAL)handle.Height());
+
 		CRect textRc = r;
 		textRc.DeflateRect(6, 6);
-		SetBkMode(hdc, TRANSPARENT);
-		SetTextColor(hdc, kAnnotColor);
-		HGDIOBJ hOldFont = SelectObject(hdc, m_textAnnotFont.GetSafeHandle());
-		DrawTextW(hdc, p->text, p->text.GetLength(), textRc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX);
-		if (hOldFont)
-			SelectObject(hdc, hOldFont);
+		RectF layout((REAL)textRc.left, (REAL)textRc.top, (REAL)textRc.Width(), (REAL)textRc.Height());
+		StringFormat fmt;
+		fmt.SetAlignment(StringAlignmentNear);
+		fmt.SetLineAlignment(StringAlignmentNear);
+		g.DrawString(drawText, drawText.GetLength(), &font, layout, &fmt, &textBrush);
 	}
 }
 
