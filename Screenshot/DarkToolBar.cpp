@@ -237,7 +237,7 @@ void CDarkToolBar::OnPaint()
 
 void CDarkToolBar::OnLButtonUp(UINT nFlags, CPoint point)
 {
-	const int hit = m_pressedIndex;
+	int hit = m_pressedIndex;
 	if (hit < 0)
 		hit = HitTest(point);
 	if (hit >= 0 && GetParent())
