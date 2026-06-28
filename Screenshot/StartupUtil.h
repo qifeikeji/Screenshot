@@ -8,3 +8,7 @@ void ApplyLaunchAtStartupSetting(BOOL shouldRun);
 CString GetDefaultSaveDirectory();
 BOOL EnsureDirectoryExists(const CString& dir);
 void OpenFolderInExplorer(const CString& dir);
+
+BOOL TryBeginSingleInstance();
+void ActivateExistingScreenshotInstance();
+void ReleaseSingleInstanceMutex();

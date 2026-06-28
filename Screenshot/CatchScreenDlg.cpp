@@ -139,6 +139,8 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_previewRect.SetRectEmpty();
 	m_editingTextIndex = -1;
 	m_dragTextIndex = -1;
+	m_textCaretPos = 0;
+	m_bCaretVisible = TRUE;
 }
 
 void CCatchScreenDlg::DoDataExchange(CDataExchange* pDX)
@@ -156,7 +158,7 @@ BEGIN_MESSAGE_MAP(CCatchScreenDlg, CDialog)
 	ON_WM_ERASEBKGND()
 	ON_WM_SETCURSOR()
 	ON_WM_RBUTTONDOWN()
-	ON_EN_CHANGE(IDC_INLINE_TEXT_EDIT, &CCatchScreenDlg::OnEnChangeInlineText)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 void CCatchScreenDlg::InvalidateSelectionFrame(const CRect& rect)
@@ -271,11 +273,6 @@ BOOL CCatchScreenDlg::OnInitDialog()
 	lf.lfWeight = FW_NORMAL;
 	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
 	m_textAnnotFont.CreateFontIndirect(&lf);
-	m_inlineTextEdit.Create(
-		WS_CHILD | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN,
-		CRect(0, 0, 120, 32), this, IDC_INLINE_TEXT_EDIT);
-	m_inlineTextEdit.SetFont(&m_textAnnotFont);
-	m_inlineTextEdit.ShowWindow(SW_HIDE);
 
 	((CScreenshotApp *)AfxGetApp())->m_hwndDlg = m_hWnd;
 	return TRUE;
@@ -283,13 +280,41 @@ BOOL CCatchScreenDlg::OnInitDialog()
 
 BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 {
+	if (m_editingTextIndex >= 0)
+	{
+		if (pMsg->message == WM_KEYDOWN)
+		{
+			if (pMsg->wParam == VK_RETURN)
+			{
+				InsertCharAtCaret(_T('\n'));
+				return TRUE;
+			}
+			if (pMsg->wParam == VK_BACK)
+			{
+				DeleteCharBeforeCaret();
+				return TRUE;
+			}
+			if (pMsg->wParam == VK_ESCAPE)
+			{
+				EndTextEdit(TRUE);
+				return TRUE;
+			}
+		}
+		else if (pMsg->message == WM_CHAR)
+		{
+			const TCHAR ch = (TCHAR)pMsg->wParam;
+			if (ch == _T('\r'))
+				return TRUE;
+			if (ch >= 32 || ch == _T('\t'))
+			{
+				InsertCharAtCaret(ch);
+				return TRUE;
+			}
+		}
+	}
+
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE)
 	{
-		if (m_editingTextIndex >= 0)
-		{
-			EndTextEdit(TRUE);
-			return TRUE;
-		}
 		if (m_bFirstDraw)
 			CancelCurrentSelection();
 		PostQuitMessage(0);
@@ -382,8 +407,6 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 				point.y - m_dragTextGrabOffset.y,
 				point.x - m_dragTextGrabOffset.x + w,
 				point.y - m_dragTextGrabOffset.y + h);
-			if (m_editingTextIndex == m_dragTextIndex)
-				m_inlineTextEdit.MoveWindow(&p->rect, FALSE);
 			CRect dirty = old;
 			dirty.UnionRect(&dirty, &p->rect);
 			dirty.UnionRect(&dirty, CTextAnnotOverlay::DragHandleRect(p->rect));
@@ -797,7 +820,7 @@ void CCatchScreenDlg::ClearTextOverlay()
 {
 	if (m_editingTextIndex >= 0)
 	{
-		m_inlineTextEdit.ShowWindow(SW_HIDE);
+		KillTimer(kTextCaretTimerId);
 		m_editingTextIndex = -1;
 	}
 	m_dragTextIndex = -1;
@@ -817,15 +840,13 @@ void CCatchScreenDlg::EndTextEdit(BOOL commit)
 {
 	if (m_editingTextIndex < 0)
 		return;
+	KillTimer(kTextCaretTimerId);
 	TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
 	if (p && commit)
-	{
-		m_inlineTextEdit.GetWindowText(p->text);
-		m_textOverlay.MeasureAndResizeBlock(*p, MaxTextWrapWidth(), &m_textAnnotFont);
-	}
-	m_inlineTextEdit.ShowWindow(SW_HIDE);
+		SyncTextBlockLayout(m_editingTextIndex);
 	const CRect dirty = p ? p->rect : CRect(0, 0, 0, 0);
 	m_editingTextIndex = -1;
+	m_textCaretPos = 0;
 	if (!dirty.IsRectEmpty())
 		InvalidateAroundRect(dirty);
 }
@@ -839,85 +860,140 @@ void CCatchScreenDlg::BeginTextEdit(int index)
 		EndTextEdit(TRUE);
 
 	m_editingTextIndex = index;
-	m_textOverlay.MeasureAndResizeBlock(*p, MaxTextWrapWidth(), &m_textAnnotFont);
-	m_inlineTextEdit.SetWindowText(p->text);
-	m_inlineTextEdit.MoveWindow(p->rect, FALSE);
-	m_inlineTextEdit.ShowWindow(SW_SHOW);
-	m_inlineTextEdit.SetFocus();
-	m_inlineTextEdit.SetSel(0, -1);
+	m_textCaretPos = p->text.GetLength();
+	m_bCaretVisible = TRUE;
+	SyncTextBlockLayout(index);
+	SetFocus();
+	SetTimer(kTextCaretTimerId, 500, nullptr);
 	InvalidateAroundRect(p->rect);
 }
 
-void CCatchScreenDlg::UpdateTextBlockSizeFromEdit(int index)
+void CCatchScreenDlg::SyncTextBlockLayout(int index)
 {
 	TextAnnotBlock* p = m_textOverlay.At((size_t)index);
 	if (!p)
 		return;
-	m_inlineTextEdit.GetWindowText(p->text);
 	m_textOverlay.MeasureAndResizeBlock(*p, MaxTextWrapWidth(), &m_textAnnotFont);
-	m_inlineTextEdit.MoveWindow(p->rect, FALSE);
+	if (m_textCaretPos > p->text.GetLength())
+		m_textCaretPos = p->text.GetLength();
+}
+
+void CCatchScreenDlg::InsertCharAtCaret(TCHAR ch)
+{
+	if (m_editingTextIndex < 0)
+		return;
+	TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
+	if (!p)
+		return;
+	p->text.Insert(m_textCaretPos, ch);
+	m_textCaretPos++;
+	SyncTextBlockLayout(m_editingTextIndex);
 	InvalidateAroundRect(p->rect);
 }
 
-void CCatchScreenDlg::OnEnChangeInlineText()
+void CCatchScreenDlg::DeleteCharBeforeCaret()
 {
-	if (m_editingTextIndex >= 0)
-		UpdateTextBlockSizeFromEdit(m_editingTextIndex);
+	if (m_editingTextIndex < 0 || m_textCaretPos <= 0)
+		return;
+	TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
+	if (!p)
+		return;
+	p->text.Delete(m_textCaretPos - 1, 1);
+	m_textCaretPos--;
+	SyncTextBlockLayout(m_editingTextIndex);
+	InvalidateAroundRect(p->rect);
+}
+
+void CCatchScreenDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == kTextCaretTimerId && m_editingTextIndex >= 0)
+	{
+		m_bCaretVisible = !m_bCaretVisible;
+		const TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
+		if (p)
+			InvalidateAroundRect(p->rect);
+		return;
+	}
+	CDialog::OnTimer(nIDEvent);
+}
+
+void CCatchScreenDlg::GetCaretClientPoint(CDC& dc, const CRect& textRc, const CString& text, int caretPos, CPoint& out) const
+{
+	out = textRc.TopLeft();
+	CString before = text.Left(caretPos);
+	if (before.IsEmpty())
+		return;
+
+	TEXTMETRIC tm = {};
+	dc.GetTextMetrics(&tm);
+	const int lineHeight = tm.tmHeight;
+
+	int lineIndex = 0;
+	int lineStart = 0;
+	for (int i = 0; i < before.GetLength(); ++i)
+	{
+		if (before[i] == _T('\n'))
+		{
+			lineIndex++;
+			lineStart = i + 1;
+		}
+	}
+	const CString lineText = before.Mid(lineStart);
+	CSize sz = dc.GetTextExtent(lineText);
+	out.x = textRc.left + sz.cx;
+	out.y = textRc.top + lineIndex * lineHeight;
+}
+
+void CCatchScreenDlg::DrawOneTextBlock(CDC& dc, const TextAnnotBlock& block, bool editing, int caretPos, bool caretVisible) const
+{
+	CRect r = block.rect;
+	CPen pen(PS_SOLID, 2, kTextBorderColor);
+	CPen* pOldPen = dc.SelectObject(&pen);
+	CBrush* pOldBrush = (CBrush*)dc.SelectStockObject(NULL_BRUSH);
+	dc.Rectangle(r);
+	dc.SelectObject(pOldBrush);
+	dc.SelectObject(pOldPen);
+
+	CRect handle = CTextAnnotOverlay::DragHandleRect(r);
+	CBrush handleBrush(kTextBorderColor);
+	CBrush* pOldHandleBrush = dc.SelectObject(&handleBrush);
+	dc.Ellipse(handle);
+	dc.SelectObject(pOldHandleBrush);
+
+	CRect textRc = r;
+	textRc.DeflateRect(6, 6);
+	dc.SetBkMode(TRANSPARENT);
+	dc.SetTextColor(kAnnotColor);
+	CFont* pOldFont = dc.SelectObject(const_cast<CFont*>(&m_textAnnotFont));
+
+	if (!block.text.IsEmpty())
+		dc.DrawText(block.text, textRc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX | DT_EXPANDTABS);
+
+	if (editing && caretVisible)
+	{
+		CPoint caretPt;
+		GetCaretClientPoint(dc, textRc, block.text, caretPos, caretPt);
+		CPen caretPen(PS_SOLID, 1, kAnnotColor);
+		CPen* pOldCaretPen = dc.SelectObject(&caretPen);
+		dc.MoveTo(caretPt.x, caretPt.y);
+		TEXTMETRIC tm = {};
+		dc.GetTextMetrics(&tm);
+		dc.LineTo(caretPt.x, caretPt.y + tm.tmHeight);
+		dc.SelectObject(pOldCaretPen);
+	}
+
+	dc.SelectObject(pOldFont);
 }
 
 void CCatchScreenDlg::DrawTextOverlay(CDC& dc) const
 {
 	for (size_t i = 0; i < m_textOverlay.Count(); ++i)
 	{
-		if ((int)i == m_editingTextIndex)
-			continue;
 		const TextAnnotBlock* p = m_textOverlay.At(i);
 		if (!p)
 			continue;
-		CRect r = p->rect;
-		CPen pen(PS_SOLID, 2, kTextBorderColor);
-		CPen* pOldPen = dc.SelectObject(&pen);
-		CBrush* pOldBrush = (CBrush*)dc.SelectStockObject(NULL_BRUSH);
-		dc.Rectangle(r);
-		dc.SelectObject(pOldBrush);
-		dc.SelectObject(pOldPen);
-
-		CRect handle = CTextAnnotOverlay::DragHandleRect(r);
-		CBrush handleBrush(kTextBorderColor);
-		CBrush* pOldHandleBrush = dc.SelectObject(&handleBrush);
-		dc.Ellipse(handle);
-		dc.SelectObject(pOldHandleBrush);
-
-		if (!p->text.IsEmpty())
-		{
-			CRect textRc = r;
-			textRc.DeflateRect(6, 6);
-			dc.SetBkMode(TRANSPARENT);
-			dc.SetTextColor(kAnnotColor);
-			CFont* pOldFont = dc.SelectObject(const_cast<CFont*>(&m_textAnnotFont));
-			dc.DrawText(p->text, textRc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX);
-			dc.SelectObject(pOldFont);
-		}
-	}
-
-	if (m_editingTextIndex >= 0)
-	{
-		const TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
-		if (p)
-		{
-			CRect r = p->rect;
-			CPen pen(PS_SOLID, 2, kTextBorderColor);
-			CPen* pOldPen = dc.SelectObject(&pen);
-			CBrush* pOldBrush = (CBrush*)dc.SelectStockObject(NULL_BRUSH);
-			dc.Rectangle(r);
-			dc.SelectObject(pOldBrush);
-			dc.SelectObject(pOldPen);
-			CRect handle = CTextAnnotOverlay::DragHandleRect(r);
-			CBrush handleBrush(kTextBorderColor);
-			CBrush* pOldHandleBrush = dc.SelectObject(&handleBrush);
-			dc.Ellipse(handle);
-			dc.SelectObject(pOldHandleBrush);
-		}
+		const bool editing = ((int)i == m_editingTextIndex);
+		DrawOneTextBlock(dc, *p, editing, m_textCaretPos, editing && m_bCaretVisible);
 	}
 }
 
@@ -927,43 +1003,29 @@ void CCatchScreenDlg::CompositeTextOverlay(HDC hdc, const CRect& selectionClient
 	sel.NormalizeRect();
 
 	Graphics g(hdc);
-	g.SetSmoothingMode(SmoothingModeAntiAlias);
 	g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
 
 	FontFamily ff(L"Segoe UI");
 	Font font(&ff, 16.f, FontStyleRegular, UnitPixel);
-	const Color borderColor(255, GetRValue(kTextBorderColor), GetGValue(kTextBorderColor), GetBValue(kTextBorderColor));
 	const Color textColor(255, GetRValue(kAnnotColor), GetGValue(kAnnotColor), GetBValue(kAnnotColor));
-	Pen borderPen(borderColor, 2.f);
 	SolidBrush textBrush(textColor);
-	SolidBrush handleBrush(borderColor);
 
 	for (size_t i = 0; i < m_textOverlay.Count(); ++i)
 	{
 		const TextAnnotBlock* p = m_textOverlay.At(i);
-		if (!p)
-			continue;
-
-		CString drawText = p->text;
-		if (drawText.IsEmpty())
+		if (!p || p->text.IsEmpty())
 			continue;
 
 		CRect r = p->rect;
 		r.OffsetRect(-sel.left, -sel.top);
 		r.NormalizeRect();
-
-		g.DrawRectangle(&borderPen, (INT)r.left, (INT)r.top, (INT)r.Width(), (INT)r.Height());
-
-		CRect handle = CTextAnnotOverlay::DragHandleRect(r);
-		g.FillEllipse(&handleBrush, (REAL)handle.left, (REAL)handle.top, (REAL)handle.Width(), (REAL)handle.Height());
-
 		CRect textRc = r;
 		textRc.DeflateRect(6, 6);
 		RectF layout((REAL)textRc.left, (REAL)textRc.top, (REAL)textRc.Width(), (REAL)textRc.Height());
 		StringFormat fmt;
 		fmt.SetAlignment(StringAlignmentNear);
 		fmt.SetLineAlignment(StringAlignmentNear);
-		g.DrawString(drawText, drawText.GetLength(), &font, layout, &fmt, &textBrush);
+		g.DrawString(p->text, p->text.GetLength(), &font, layout, &fmt, &textBrush);
 	}
 }
 

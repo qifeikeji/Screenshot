@@ -7,6 +7,7 @@
 #include "AppSettings.h"
 #include "qt/MainWindow.h"
 #include "qt/ScreenshotBridge.h"
+#include "StartupUtil.h"
 #include <GdiPlus.h>
 #include <QApplication>
 
@@ -72,6 +73,12 @@ BOOL CScreenshotApp::InitInstance()
 	GdiplusStartup(&m_gdiplusToken,&input,NULL);
 
 	GetAppSettings().Load();
+
+	if (!TryBeginSingleInstance())
+	{
+		ActivateExistingScreenshotInstance();
+		return FALSE;
+	}
 
 	AfxEnableControlContainer();
 
@@ -174,6 +181,7 @@ BOOL CScreenshotApp::ProcessMessageFilter(int code, LPMSG lpMsg)
 }
 int CScreenshotApp::ExitInstance()
 {
+	ReleaseSingleInstanceMutex();
 	GdiplusShutdown(m_gdiplusToken);
 
 	return CWinApp::ExitInstance();

@@ -61,11 +61,13 @@ public:
 	CRect m_previewRect;
 
 	CTextAnnotOverlay m_textOverlay;
-	CEdit m_inlineTextEdit;
 	CFont m_textAnnotFont;
 	int m_editingTextIndex;
 	int m_dragTextIndex;
 	CPoint m_dragTextGrabOffset;
+	int m_textCaretPos;
+	BOOL m_bCaretVisible;
+	static const UINT kTextCaretTimerId = 6001;
 
 public:
 	HBITMAP CopyScreenToBitmap(LPRECT lpRect, BOOL bSave = FALSE);
@@ -90,9 +92,13 @@ public:
 	void ClearTextOverlay();
 	void EndTextEdit(BOOL commit);
 	void BeginTextEdit(int index);
-	void UpdateTextBlockSizeFromEdit(int index);
+	void SyncTextBlockLayout(int index);
 	void DrawTextOverlay(CDC& dc) const;
+	void DrawOneTextBlock(CDC& dc, const TextAnnotBlock& block, bool editing, int caretPos, bool caretVisible) const;
 	void CompositeTextOverlay(HDC hdc, const CRect& selectionClient) const;
+	void GetCaretClientPoint(CDC& dc, const CRect& textRc, const CString& text, int caretPos, CPoint& out) const;
+	void InsertCharAtCaret(TCHAR ch);
+	void DeleteCharBeforeCaret();
 	int MaxTextWrapWidth() const;
 
 protected:
@@ -110,7 +116,7 @@ protected:
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
-	afx_msg void OnEnChangeInlineText();
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
 	DECLARE_MESSAGE_MAP()
 	virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);

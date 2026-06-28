@@ -105,3 +105,49 @@ void OpenFolderInExplorer(const CString& dir)
 	EnsureDirectoryExists(path);
 	ShellExecuteW(nullptr, L"open", path, nullptr, nullptr, SW_SHOWNORMAL);
 }
+
+namespace {
+
+const wchar_t kSingleInstanceMutexName[] = L"Local\\ScreenshotTool_SingleInstance_v1";
+const wchar_t kMainWindowTitle[] = L"\u622a\u56fe\u5de5\u5177";
+HANDLE g_singleInstanceMutex = nullptr;
+
+} // namespace
+
+BOOL TryBeginSingleInstance()
+{
+	if (g_singleInstanceMutex)
+		return TRUE;
+	g_singleInstanceMutex = CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName);
+	if (!g_singleInstanceMutex || GetLastError() == ERROR_ALREADY_EXISTS)
+	{
+		if (g_singleInstanceMutex)
+		{
+			CloseHandle(g_singleInstanceMutex);
+			g_singleInstanceMutex = nullptr;
+		}
+		return FALSE;
+	}
+	return TRUE;
+}
+
+void ActivateExistingScreenshotInstance()
+{
+	HWND hwnd = FindWindowW(nullptr, kMainWindowTitle);
+	if (!hwnd)
+		return;
+	if (!IsWindowVisible(hwnd))
+		ShowWindow(hwnd, SW_SHOW);
+	ShowWindow(hwnd, SW_RESTORE);
+	SetForegroundWindow(hwnd);
+}
+
+void ReleaseSingleInstanceMutex()
+{
+	if (g_singleInstanceMutex)
+	{
+		ReleaseMutex(g_singleInstanceMutex);
+		CloseHandle(g_singleInstanceMutex);
+		g_singleInstanceMutex = nullptr;
+	}
+}
