@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
@@ -32,6 +33,7 @@ set(SCREENSHOT_SOURCES
   ${SCREENSHOT_DIR}/qt/SettingsDialog.cpp
   ${SCREENSHOT_DIR}/qt/ScreenshotBridge.cpp
   ${SCREENSHOT_DIR}/qt/QtMfcMain.cpp
+  ${SCREENSHOT_DIR}/qt/AppResources.qrc
   ${SCREENSHOT_DIR}/Screenshot.rc
 )
 

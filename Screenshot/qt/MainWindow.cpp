@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
@@ -21,10 +22,26 @@
 #include "SettingsDialog.h"
 #include "StartupUtil.h"
 
+namespace {
+
+QIcon LoadAppIcon()
+{
+	const QIcon icon(QStringLiteral(":/app/Screenshot.ico"));
+	if (!icon.isNull())
+		return icon;
+	return QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
+}
+
+} // namespace
+
 MainWindow::MainWindow(QWidget* parent)
 	: QWidget(parent)
 {
 	setWindowTitle(QStringLiteral("\u622a\u56fe\u5de5\u5177"));
+	const QIcon appIcon = LoadAppIcon();
+	setWindowIcon(appIcon);
+	if (QApplication* app = qApp)
+		app->setWindowIcon(appIcon);
 	setMinimumSize(360, 72);
 
 	auto* layout = new QVBoxLayout(this);
@@ -79,7 +96,7 @@ void MainWindow::setupTrayIcon()
 		return;
 
 	m_trayIcon = new QSystemTrayIcon(this);
-	m_trayIcon->setIcon(QApplication::style()->standardIcon(QStyle::SP_ComputerIcon));
+	m_trayIcon->setIcon(LoadAppIcon());
 	m_trayIcon->setToolTip(QStringLiteral("\u622a\u56fe\u5de5\u5177"));
 
 	m_trayMenu = new QMenu(this);
