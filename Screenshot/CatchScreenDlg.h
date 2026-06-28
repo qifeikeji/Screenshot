@@ -73,7 +73,7 @@ public:
 	static const int kReselectDragThresholdPx = 10;
 
 	bool HasValidSelection() const;
-	void InvalidateTextBlockRegion(const CRect& blockRect) const;
+	void InvalidateTextBlockRegion(const CRect& blockRect);
 
 public:
 	HBITMAP CopyScreenToBitmap(LPRECT lpRect, BOOL bSave = FALSE);

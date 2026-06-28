@@ -197,7 +197,7 @@ bool CCatchScreenDlg::HasValidSelection() const
 	return r.Width() > 4 && r.Height() > 4;
 }
 
-void CCatchScreenDlg::InvalidateTextBlockRegion(const CRect& blockRect) const
+void CCatchScreenDlg::InvalidateTextBlockRegion(const CRect& blockRect)
 {
 	CRect inv = blockRect;
 	inv.NormalizeRect();
