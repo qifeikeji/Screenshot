@@ -50,10 +50,10 @@ int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 
 namespace {
 
-const COLORREF kAnnotColor = RGB(255, 60, 60);
-const int kAnnotPenWidth = 3;
 const COLORREF kTextBorderColor = RGB(10, 100, 130);
 const COLORREF kTextFillColor = RGB(255, 255, 255);
+const int kAnnotPenWidthSmall = 3;
+const int kAnnotPenWidthLarge = 6;
 
 } // namespace
 
@@ -133,6 +133,8 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 
 	m_annotationRect.SetRectEmpty();
 	m_activeTool = AnnotToolNone;
+	m_annotColor = RGB(255, 60, 60);
+	m_annotPenWidth = kAnnotPenWidthSmall;
 	m_bAnnotating = FALSE;
 	m_annotStart = CPoint(0, 0);
 	m_annotLast = CPoint(0, 0);
@@ -163,13 +165,62 @@ BEGIN_MESSAGE_MAP(CCatchScreenDlg, CDialog)
 	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
+namespace {
+
+constexpr int kSizeLabelPadW = 80;
+constexpr int kSizeLabelPadH = 22;
+constexpr int kSizeLabelGap = 6;
+
+CRect TopSizeLabelInvalidZone(const CRect& sel)
+{
+	const int midX = (sel.left + sel.right) / 2;
+	return CRect(
+		midX - kSizeLabelPadW / 2,
+		sel.top - kSizeLabelPadH - kSizeLabelGap,
+		midX + kSizeLabelPadW / 2,
+		sel.top);
+}
+
+CRect RightSizeLabelInvalidZone(const CRect& sel)
+{
+	const int midY = (sel.top + sel.bottom) / 2;
+	return CRect(
+		sel.right + kSizeLabelGap,
+		midY - kSizeLabelPadH / 2,
+		sel.right + kSizeLabelGap + kSizeLabelPadW,
+		midY + kSizeLabelPadH / 2);
+}
+
+} // namespace
+
+CRect CCatchScreenDlg::SelectionFrameInvalidRect(CRect rect) const
+{
+	rect.NormalizeRect();
+	if (rect.IsRectEmpty())
+		return CRect(0, 0, 0, 0);
+
+	CRect inv = rect;
+	inv.InflateRect(12, 12);
+	inv.UnionRect(&inv, &TopSizeLabelInvalidZone(rect));
+	inv.UnionRect(&inv, &RightSizeLabelInvalidZone(rect));
+	inv.InflateRect(2, 2);
+	return inv;
+}
+
 void CCatchScreenDlg::InvalidateSelectionFrame(const CRect& rect)
 {
-	CRect inv = rect;
-	inv.NormalizeRect();
+	const CRect inv = SelectionFrameInvalidRect(rect);
 	if (inv.IsRectEmpty())
 		return;
-	inv.InflateRect(48, 28);
+	InvalidateRect(&inv, FALSE);
+}
+
+void CCatchScreenDlg::InvalidateSelectionFrameUnion(const CRect& a, const CRect& b)
+{
+	CRect inv = SelectionFrameInvalidRect(a);
+	inv.UnionRect(&inv, &SelectionFrameInvalidRect(b));
+	if (inv.IsRectEmpty())
+		return;
 	InvalidateRect(&inv, FALSE);
 }
 
@@ -535,7 +586,7 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 			if (m_activeTool == AnnotToolBrush)
 			{
 				m_annotation.DrawLine(m_annotLast.x, m_annotLast.y, local.x, local.y,
-					kAnnotPenWidth, kAnnotColor);
+					m_annotPenWidth, m_annotColor);
 				m_annotLast = local;
 				InvalidateAnnotationView();
 			}
@@ -568,10 +619,7 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 		cur.NormalizeRect();
 		CRect prevNorm = prev;
 		prevNorm.NormalizeRect();
-		CRect dirty = prevNorm;
-		dirty.UnionRect(&dirty, &cur);
-		dirty.InflateRect(2, 2);
-		InvalidateRect(&dirty, FALSE);
+		InvalidateSelectionFrameUnion(prevNorm, cur);
 	}
 
 	CDialog::OnMouseMove(nFlags, point);
@@ -724,19 +772,19 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 			{
 				PushEditUndoSnapshot();
 				m_annotation.DrawArrow(m_annotStart.x, m_annotStart.y, local.x, local.y,
-					kAnnotPenWidth, kAnnotColor);
+					m_annotPenWidth, m_annotColor);
 			}
 			else if (m_activeTool == AnnotToolRect)
 			{
 				PushEditUndoSnapshot();
 				m_annotation.DrawRectangle(m_annotStart.x, m_annotStart.y, local.x, local.y,
-					kAnnotPenWidth, kAnnotColor, FALSE);
+					m_annotPenWidth, m_annotColor, FALSE);
 			}
 			else if (m_activeTool == AnnotToolEllipse)
 			{
 				PushEditUndoSnapshot();
 				m_annotation.DrawEllipse(m_annotStart.x, m_annotStart.y, local.x, local.y,
-					kAnnotPenWidth, kAnnotColor, FALSE);
+					m_annotPenWidth, m_annotColor, FALSE);
 			}
 		}
 		m_previewRect.SetRectEmpty();
@@ -943,18 +991,17 @@ void CCatchScreenDlg::DrawSelectionSizeLabels(CDC& dc)
 	const CSize wSize = dc.GetTextExtent(wLabel);
 	const CSize hSize = dc.GetTextExtent(hLabel);
 
-	int wx = r.left + (w - wSize.cx) / 2;
-	int wy = r.top - wSize.cy - 4;
-	if (wy < 2)
-		wy = r.top + 2;
+	const int topMidX = (r.left + r.right) / 2;
+	const int rightMidY = (r.top + r.bottom) / 2;
+
+	const int wx = topMidX - wSize.cx / 2;
+	int wy = r.top - wSize.cy - kSizeLabelGap;
+	if (wy < 0)
+		wy = 0;
 	dc.TextOut(wx, wy, wLabel);
 
-	int hx = r.right + 6;
-	int hy = r.top + (h - hSize.cy) / 2;
-	CRect client;
-	GetClientRect(&client);
-	if (hx + hSize.cx > client.right)
-		hx = r.right - hSize.cx - 4;
+	const int hx = r.right + kSizeLabelGap;
+	const int hy = rightMidY - hSize.cy / 2;
 	dc.TextOut(hx, hy, hLabel);
 
 	dc.SetBkMode(oldBkMode);
@@ -966,7 +1013,7 @@ void CCatchScreenDlg::DrawPreviewShape(HDC hdc) const
 	if (m_annotationRect.IsRectEmpty())
 		return;
 
-	HPEN pen = CreatePen(PS_DOT, 1, kAnnotColor);
+	HPEN pen = CreatePen(PS_DOT, 1, m_annotColor);
 	HGDIOBJ oldPen = SelectObject(hdc, pen);
 	HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
 
@@ -1162,7 +1209,7 @@ void CCatchScreenDlg::DrawOneTextBlock(CDC& dc, const TextAnnotBlock& block, boo
 	CRect textRc = r;
 	textRc.DeflateRect(6, 6);
 	dc.SetBkMode(TRANSPARENT);
-	dc.SetTextColor(kAnnotColor);
+	dc.SetTextColor(m_annotColor);
 	CFont* pOldFont = dc.SelectObject(const_cast<CFont*>(&m_textAnnotFont));
 
 	if (!block.text.IsEmpty())
@@ -1172,7 +1219,7 @@ void CCatchScreenDlg::DrawOneTextBlock(CDC& dc, const TextAnnotBlock& block, boo
 	{
 		CPoint caretPt;
 		GetCaretClientPoint(dc, textRc, block.text, caretPos, caretPt);
-		CPen caretPen(PS_SOLID, 1, kAnnotColor);
+		CPen caretPen(PS_SOLID, 1, m_annotColor);
 		CPen* pOldCaretPen = dc.SelectObject(&caretPen);
 		dc.MoveTo(caretPt.x, caretPt.y);
 		TEXTMETRIC tm = {};
@@ -1206,7 +1253,7 @@ void CCatchScreenDlg::CompositeTextOverlay(HDC hdc, const CRect& selectionClient
 
 	FontFamily ff(L"Segoe UI");
 	Font font(&ff, 16.f, FontStyleRegular, UnitPixel);
-	const Color textColor(255, GetRValue(kAnnotColor), GetGValue(kAnnotColor), GetBValue(kAnnotColor));
+	const Color textColor(255, GetRValue(m_annotColor), GetGValue(m_annotColor), GetBValue(m_annotColor));
 	SolidBrush textBrush(textColor);
 
 	for (size_t i = 0; i < m_textOverlay.Count(); ++i)
@@ -1448,44 +1495,62 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		const int wmId = LOWORD(wParam);
 		switch (wmId)
 		{
-		case DarkToolBar_CommandBase:
+		case DarkToolBar_CommandBase + DarkToolBarBtnUndo:
 			if (PerformEditUndo())
 				InvalidateAnnotationView();
 			break;
-		case DarkToolBar_CommandBase + 1:
+		case DarkToolBar_CommandBase + DarkToolBarBtnArrow:
 			m_activeTool = AnnotToolArrow;
 			SyncAnnotationLayerToSelection();
 			break;
-		case DarkToolBar_CommandBase + 2:
+		case DarkToolBar_CommandBase + DarkToolBarBtnRect:
 			m_activeTool = AnnotToolRect;
 			SyncAnnotationLayerToSelection();
 			break;
-		case DarkToolBar_CommandBase + 3:
+		case DarkToolBar_CommandBase + DarkToolBarBtnEllipse:
 			m_activeTool = AnnotToolEllipse;
 			SyncAnnotationLayerToSelection();
 			break;
-		case DarkToolBar_CommandBase + 4:
+		case DarkToolBar_CommandBase + DarkToolBarBtnBrush:
 			m_activeTool = AnnotToolBrush;
 			SyncAnnotationLayerToSelection();
 			break;
-		case DarkToolBar_CommandBase + 5:
+		case DarkToolBar_CommandBase + DarkToolBarBtnText:
 			m_activeTool = AnnotToolText;
 			SyncAnnotationLayerToSelection();
 			break;
-		case DarkToolBar_CommandBase + 6:
+		case DarkToolBar_CommandBase + DarkToolBarBtnSave:
 			if (m_editingTextIndex >= 0)
 				EndTextEdit(TRUE);
 			SaveSelectionToFile(m_rectTracker.m_rect);
 			break;
-		case DarkToolBar_CommandBase + 7:
+		case DarkToolBar_CommandBase + DarkToolBarBtnFolder:
 			OpenSaveFolder();
 			break;
-		case DarkToolBar_CommandBase + 8:
+		case DarkToolBar_CommandBase + DarkToolBarBtnColorRed:
+			m_annotColor = RGB(255, 60, 60);
+			break;
+		case DarkToolBar_CommandBase + DarkToolBarBtnColorYellow:
+			m_annotColor = RGB(255, 220, 0);
+			break;
+		case DarkToolBar_CommandBase + DarkToolBarBtnColorBlue:
+			m_annotColor = RGB(60, 120, 255);
+			break;
+		case DarkToolBar_CommandBase + DarkToolBarBtnColorWhite:
+			m_annotColor = RGB(255, 255, 255);
+			break;
+		case DarkToolBar_CommandBase + DarkToolBarBtnThickSmall:
+			m_annotPenWidth = kAnnotPenWidthSmall;
+			break;
+		case DarkToolBar_CommandBase + DarkToolBarBtnThickLarge:
+			m_annotPenWidth = kAnnotPenWidthLarge;
+			break;
+		case DarkToolBar_CommandBase + DarkToolBarBtnExit:
 			if (m_editingTextIndex >= 0)
 				EndTextEdit(TRUE);
 			OnCancel();
 			break;
-		case DarkToolBar_CommandBase + 9:
+		case DarkToolBar_CommandBase + DarkToolBarBtnFinish:
 			if (m_editingTextIndex >= 0)
 				EndTextEdit(TRUE);
 			if (GetAppSettings().saveToFileOnEnterAfterSelect)

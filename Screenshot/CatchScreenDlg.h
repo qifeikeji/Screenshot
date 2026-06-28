@@ -63,6 +63,8 @@ public:
 	CRect m_rectPrevDrag;
 
 	AnnotTool m_activeTool;
+	COLORREF m_annotColor;
+	int m_annotPenWidth;
 	BOOL m_bAnnotating;
 	CPoint m_annotStart;
 	CPoint m_annotLast;
@@ -97,6 +99,8 @@ public:
 	void ClearAnnotationLayer();
 	void InvalidateAroundRect(const CRect& area);
 	void InvalidateSelectionFrame(const CRect& rect);
+	void InvalidateSelectionFrameUnion(const CRect& a, const CRect& b);
+	CRect SelectionFrameInvalidRect(CRect rect) const;
 	void PositionToolBar();
 	void BeginSelectionAt(CPoint point);
 	void CancelCurrentSelection();

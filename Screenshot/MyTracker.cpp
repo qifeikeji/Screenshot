@@ -417,7 +417,9 @@ void CMyTracker::DrawTrackerRect(
 */
 	//�˺����ǻ�������С��λ��ʱ������
 	//���ڱ�������Ҫ,���Ҫ����ʹ���Ļ�������עʾȥ��������!
-	((CCatchScreenDlg *)pWnd)->InvalidateAroundRect(((CCatchScreenDlg *)pWnd)->m_rectTracker.m_rect);
+	CRect cur = ((CCatchScreenDlg*)pWnd)->m_rectTracker.m_rect;
+	CRect old = *lpRect;
+	((CCatchScreenDlg*)pWnd)->InvalidateSelectionFrameUnion(old, cur);
     
 }
 
