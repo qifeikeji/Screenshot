@@ -3,7 +3,6 @@
 #include "StartupUtil.h"
 
 #include "SettingsDialog.h"
-#include "StartupUtil.h"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -99,7 +98,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 	layout->addLayout(pathRow);
 
 	m_checkCopyExit = new QCheckBox(
-		QStringLiteral("\u6846\u9009\u540e\u76f4\u63a5\u590d\u5236\u5230\u526a\u8d34\u677f\u5e76\u9000\u51fa\u622a\u56fe"), this);
+		QStringLiteral("\u6846\u9009\u540e\u76f4\u63a5\u590d\u5236\u5230\u526a\u8d34\u677f\u3001\u4fdd\u5b58\u5230\u4fdd\u5b58\u8def\u5f84\u5e76\u9000\u51fa\u622a\u56fe"), this);
 	m_checkCopyExit->setChecked(s.copyAndExitAfterSelect != FALSE);
 	layout->addWidget(m_checkCopyExit);
 

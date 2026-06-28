@@ -925,8 +925,8 @@ void CCatchScreenDlg::DrawSelectionSizeLabels(CDC& dc)
 
 	CString wLabel;
 	CString hLabel;
-	wLabel.Format(_T("%d \u50cf\u7d20"), w);
-	hLabel.Format(_T("%d \u50cf\u7d20"), h);
+	wLabel.Format(_T("%d"), w);
+	hLabel.Format(_T("%d"), h);
 
 	LOGFONT lf = {};
 	lf.lfHeight = -12;
@@ -1239,6 +1239,7 @@ void CCatchScreenDlg::FinishSelectionIfValid(const CPoint& endPt)
 	if (GetAppSettings().copyAndExitAfterSelect)
 	{
 		CopySelectionToClipboard(m_rectTracker.m_rect);
+		SaveSelectionToFile(m_rectTracker.m_rect);
 		PostQuitMessage(0);
 		return;
 	}
@@ -1487,8 +1488,11 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		case DarkToolBar_CommandBase + 9:
 			if (m_editingTextIndex >= 0)
 				EndTextEdit(TRUE);
-			if (CopySelectionToClipboard(m_rectTracker.m_rect))
-				PostQuitMessage(0);
+			if (GetAppSettings().saveToFileOnEnterAfterSelect)
+				SaveSelectionToFile(m_rectTracker.m_rect);
+			else
+				CopySelectionToClipboard(m_rectTracker.m_rect);
+			PostQuitMessage(0);
 			break;
 		default:
 			bHandle = false;
