@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QSystemTrayIcon>
 #include <QWidget>
 
 class QCloseEvent;
@@ -7,7 +8,6 @@ class QMenu;
 class QPushButton;
 class QResizeEvent;
 class QShowEvent;
-class QSystemTrayIcon;
 
 class MainWindow : public QWidget
 {
