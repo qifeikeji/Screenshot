@@ -76,6 +76,12 @@ BOOL CScreenshotApp::InitInstance()
 
 	if (!TryBeginSingleInstance())
 	{
+		static int qtArgc = 1;
+		static char qtArg0[] = "Screenshot";
+		static char* qtArgv[] = { qtArg0, nullptr };
+		QApplication qtApp(qtArgc, qtArgv);
+		ApplyQtDarkTheme(&qtApp);
+		ShowAlreadyRunningMessage();
 		ActivateExistingScreenshotInstance();
 		return FALSE;
 	}

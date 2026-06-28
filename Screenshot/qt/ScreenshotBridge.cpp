@@ -74,6 +74,9 @@ void UnregisterGlobalScreenshotHotKey(HWND hwnd, UINT id)
 		::UnregisterHotKey(hwnd, id);
 }
 
+#include <QMessageBox>
+#include <QPushButton>
+
 void ApplyQtDarkTheme(QApplication* app)
 {
 	if (!app)
@@ -91,4 +94,19 @@ void ApplyQtDarkTheme(QApplication* app)
 	pal.setColor(QPalette::HighlightedText, Qt::white);
 	pal.setColor(QPalette::PlaceholderText, QColor(160, 160, 165));
 	app->setPalette(pal);
+}
+
+void ShowAlreadyRunningMessage()
+{
+	QMessageBox box;
+	box.setWindowTitle(QStringLiteral("\u622a\u56fe\u5de5\u5177"));
+	box.setIcon(QMessageBox::Information);
+	box.setText(QStringLiteral("\u8f6f\u4ef6\u5df2\u5728\u8fd0\u884c\u4e2d\u3002"));
+	box.setInformativeText(QStringLiteral("\u8bf7\u4ece\u901a\u77e5\u533a\u57df\u56fe\u6807\u6216\u5df2\u6253\u5f00\u7684\u4e3b\u7a97\u53e3\u4f7f\u7528\u622a\u56fe\u5de5\u5177\u3002"));
+	box.setStandardButtons(QMessageBox::Ok);
+	box.setDefaultButton(QMessageBox::Ok);
+	if (QPushButton* ok = box.button(QMessageBox::Ok))
+		ok->setText(QStringLiteral("\u786e\u5b9a"));
+	box.setWindowModality(Qt::ApplicationModal);
+	box.exec();
 }

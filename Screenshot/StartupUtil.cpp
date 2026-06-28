@@ -137,7 +137,7 @@ void ActivateExistingScreenshotInstance()
 	if (!hwnd)
 		return;
 	if (!IsWindowVisible(hwnd))
-		ShowWindow(hwnd, SW_SHOW);
+		return;
 	ShowWindow(hwnd, SW_RESTORE);
 	SetForegroundWindow(hwnd);
 }
