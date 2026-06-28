@@ -24,6 +24,9 @@ public:
 	CRect MakeBoxAtPoint(CPoint clientPt, size_t stackIndex) const;
 	void MeasureAndResizeBlock(TextAnnotBlock& block, int maxWrapWidth, CFont* pFont) const;
 
+	std::vector<TextAnnotBlock> GetBlocksCopy() const;
+	void SetBlocks(const std::vector<TextAnnotBlock>& blocks);
+
 	void DrawAll(CDC& dc, int skipEditIndex, CFont* pFont, COLORREF borderColor, COLORREF textColor) const;
 	void DrawAllOnHDC(HDC hdc, CFont* pFont, COLORREF borderColor, COLORREF textColor) const;
 

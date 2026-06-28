@@ -27,6 +27,9 @@ public:
 	void DrawArrow(int x1, int y1, int x2, int y2, int width, COLORREF color);
 	void DrawTextAt(int x, int y, LPCTSTR text, int height, COLORREF color);
 
+	HBITMAP CopySnapshot() const;
+	void ApplySnapshot(HBITMAP hb, int cx, int cy);
+
 private:
 	void FixAlphaChannel() const;
 	void RefreshBitsPointer();

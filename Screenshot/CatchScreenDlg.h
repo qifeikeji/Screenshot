@@ -24,6 +24,14 @@ enum AnnotTool
 	AnnotToolText
 };
 
+struct CatchScreenEditUndoSnapshot
+{
+	HBITMAP hAnnot = NULL;
+	int annotCx = 0;
+	int annotCy = 0;
+	std::vector<TextAnnotBlock> texts;
+};
+
 class CCatchScreenDlg : public CDialog
 {
 public:
@@ -71,6 +79,11 @@ public:
 	CPoint m_pendingReselectPt;
 	static const UINT kTextCaretTimerId = 6001;
 	static const int kReselectDragThresholdPx = 10;
+
+	std::vector<CatchScreenEditUndoSnapshot> m_editUndoStack;
+	void PushEditUndoSnapshot();
+	BOOL PerformEditUndo();
+	void ClearEditUndoStack();
 
 	bool HasValidSelection() const;
 	void InvalidateTextBlockRegion(const CRect& blockRect);

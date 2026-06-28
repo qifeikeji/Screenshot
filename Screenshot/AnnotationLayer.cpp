@@ -352,3 +352,32 @@ void CAnnotationLayer::DrawTextAt(int x, int y, LPCTSTR text, int height, COLORR
 	DeleteObject(font);
 	EndDraw(hdc, old);
 }
+
+HBITMAP CAnnotationLayer::CopySnapshot() const
+{
+	if (!m_hBitmap)
+		return NULL;
+	return CloneBitmap(m_hBitmap);
+}
+
+void CAnnotationLayer::ApplySnapshot(HBITMAP hb, int cx, int cy)
+{
+	for (HBITMAP u : m_undoStack)
+	{
+		if (u)
+			DeleteObject(u);
+	}
+	m_undoStack.clear();
+	if (m_hBitmap)
+	{
+		DeleteObject(m_hBitmap);
+		m_hBitmap = NULL;
+	}
+	m_size = CSize(0, 0);
+	m_pBits = NULL;
+	if (!hb || cx <= 0 || cy <= 0)
+		return;
+	m_hBitmap = hb;
+	m_size = CSize(cx, cy);
+	RefreshBitsPointer();
+}

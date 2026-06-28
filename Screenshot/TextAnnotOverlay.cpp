@@ -71,6 +71,16 @@ void CTextAnnotOverlay::AddBlock(const CRect& clientRect, LPCTSTR text)
 	m_blocks.push_back(b);
 }
 
+std::vector<TextAnnotBlock> CTextAnnotOverlay::GetBlocksCopy() const
+{
+	return m_blocks;
+}
+
+void CTextAnnotOverlay::SetBlocks(const std::vector<TextAnnotBlock>& blocks)
+{
+	m_blocks = blocks;
+}
+
 CRect CTextAnnotOverlay::MakeCenteredBox(const CRect& selectionClient, size_t stackIndex) const
 {
 	CRect sel = selectionClient;

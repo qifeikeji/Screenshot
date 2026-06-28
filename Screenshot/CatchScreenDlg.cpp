@@ -223,10 +223,75 @@ void CCatchScreenDlg::CancelCurrentSelection()
 	m_rectTracker.m_rect.SetRect(-1, -1, -1, -1);
 	ClearAnnotationLayer();
 	ClearTextOverlay();
+	ClearEditUndoStack();
 	m_toolBar.HideBar();
 
 	if (!old.IsRectEmpty() && old.Width() > 0 && old.Height() > 0)
 		InvalidateSelectionFrame(old);
+}
+
+void CCatchScreenDlg::ClearEditUndoStack()
+{
+	for (CatchScreenEditUndoSnapshot& s : m_editUndoStack)
+	{
+		if (s.hAnnot)
+			DeleteObject(s.hAnnot);
+	}
+	m_editUndoStack.clear();
+}
+
+void CCatchScreenDlg::PushEditUndoSnapshot()
+{
+	SyncAnnotationLayerToSelection();
+	CatchScreenEditUndoSnapshot s;
+	s.texts = m_textOverlay.GetBlocksCopy();
+	if (m_annotation.IsValid())
+	{
+		const CSize sz = m_annotation.GetSize();
+		s.hAnnot = m_annotation.CopySnapshot();
+		s.annotCx = sz.cx;
+		s.annotCy = sz.cy;
+	}
+	m_editUndoStack.push_back(s);
+	static const size_t kMaxEditUndo = 32;
+	if (m_editUndoStack.size() > kMaxEditUndo)
+	{
+		if (m_editUndoStack.front().hAnnot)
+			DeleteObject(m_editUndoStack.front().hAnnot);
+		m_editUndoStack.erase(m_editUndoStack.begin());
+	}
+}
+
+BOOL CCatchScreenDlg::PerformEditUndo()
+{
+	if (m_editUndoStack.empty())
+		return FALSE;
+	EndTextEdit(TRUE);
+	CatchScreenEditUndoSnapshot s = m_editUndoStack.back();
+	m_editUndoStack.pop_back();
+
+	m_textOverlay.SetBlocks(s.texts);
+	m_editingTextIndex = -1;
+	m_dragTextIndex = -1;
+
+	if (s.hAnnot && s.annotCx > 0 && s.annotCy > 0)
+	{
+		m_annotation.ApplySnapshot(s.hAnnot, s.annotCx, s.annotCy);
+	}
+	else
+	{
+		if (s.hAnnot)
+			DeleteObject(s.hAnnot);
+		m_annotation.Clear();
+		SyncAnnotationLayerToSelection();
+	}
+
+	InvalidateAnnotationView();
+	CRect sel = m_rectTracker.m_rect;
+	sel.NormalizeRect();
+	if (!sel.IsRectEmpty())
+		InvalidateAroundRect(sel);
+	return TRUE;
 }
 
 void CCatchScreenDlg::BeginSelectionAt(CPoint point)
@@ -343,6 +408,16 @@ BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 		PostQuitMessage(0);
 		return TRUE;
 	}
+
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+	{
+		if (m_bFirstDraw && !m_bDraw && HasValidSelection() && m_editingTextIndex < 0 && !m_bAnnotating)
+		{
+			if (CopySelectionToClipboard(m_rectTracker.m_rect))
+				PostQuitMessage(0);
+			return TRUE;
+		}
+	}
 	return CDialog::PreTranslateMessage(pMsg);
 }
  
@@ -392,7 +467,8 @@ void CCatchScreenDlg::OnPaint()
 			m_rectTracker.Draw(&memDC);
 			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty() && m_annotation.HasVisibleContent())
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
-			if (m_bAnnotating && !m_previewRect.IsRectEmpty())
+			if (m_bAnnotating && (m_activeTool == AnnotToolArrow || m_activeTool == AnnotToolRect ||
+				m_activeTool == AnnotToolEllipse))
 				DrawPreviewShape(memDC.m_hDC);
 			DrawTextOverlay(memDC);
 		}
@@ -556,6 +632,7 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	{
 		SyncAnnotationLayerToSelection();
 		CRect box = m_textOverlay.MakeBoxAtPoint(point, m_textOverlay.Count());
+		PushEditUndoSnapshot();
 		m_textOverlay.AddBlock(box, _T("\u6587\u672c"));
 		BeginTextEdit((int)m_textOverlay.Count() - 1);
 		InvalidateTextBlockRegion(box);
@@ -575,8 +652,7 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 				m_annotStart = local;
 				m_annotLast = local;
 				m_previewRect.SetRect(local.x, local.y, local.x, local.y);
-				if (m_activeTool == AnnotToolBrush)
-					m_annotation.PushUndoSnapshot();
+				PushEditUndoSnapshot();
 				SetCapture();
 			}
 		}
@@ -652,19 +728,16 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else if (m_activeTool == AnnotToolArrow)
 			{
-				m_annotation.PushUndoSnapshot();
 				m_annotation.DrawArrow(m_annotStart.x, m_annotStart.y, local.x, local.y,
 					kAnnotPenWidth, kAnnotColor);
 			}
 			else if (m_activeTool == AnnotToolRect)
 			{
-				m_annotation.PushUndoSnapshot();
 				m_annotation.DrawRectangle(m_annotStart.x, m_annotStart.y, local.x, local.y,
 					kAnnotPenWidth, kAnnotColor, FALSE);
 			}
 			else if (m_activeTool == AnnotToolEllipse)
 			{
-				m_annotation.PushUndoSnapshot();
 				m_annotation.DrawEllipse(m_annotStart.x, m_annotStart.y, local.x, local.y,
 					kAnnotPenWidth, kAnnotColor, FALSE);
 			}
@@ -699,6 +772,7 @@ void CCatchScreenDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 	const int textHit = m_textOverlay.HitTest(point);
 	if (textHit >= 0)
 	{
+		PushEditUndoSnapshot();
 		BeginTextEdit(textHit);
 		return;
 	}
@@ -845,30 +919,40 @@ void CCatchScreenDlg::InvalidateAnnotationView()
 
 void CCatchScreenDlg::DrawPreviewShape(HDC hdc) const
 {
-	if (m_previewRect.IsRectEmpty() || m_annotationRect.IsRectEmpty())
+	if (m_annotationRect.IsRectEmpty())
 		return;
-	CRect r = m_previewRect;
-	r.NormalizeRect();
-	r.OffsetRect(m_annotationRect.left, m_annotationRect.top);
 
 	HPEN pen = CreatePen(PS_DOT, 1, kAnnotColor);
 	HGDIOBJ oldPen = SelectObject(hdc, pen);
 	HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
-	if (m_activeTool == AnnotToolRect)
-		Rectangle(hdc, r.left, r.top, r.right, r.bottom);
-	else if (m_activeTool == AnnotToolEllipse)
-		Ellipse(hdc, r.left, r.top, r.right, r.bottom);
-	else if (m_activeTool == AnnotToolArrow)
+
+	if (m_activeTool == AnnotToolArrow)
 	{
-		CRect pr = m_previewRect;
-		pr.NormalizeRect();
 		const int x1 = m_annotStart.x + m_annotationRect.left;
 		const int y1 = m_annotStart.y + m_annotationRect.top;
-		const int x2 = pr.right + m_annotationRect.left;
-		const int y2 = pr.bottom + m_annotationRect.top;
+		const int x2 = m_previewRect.right + m_annotationRect.left;
+		const int y2 = m_previewRect.bottom + m_annotationRect.top;
 		MoveToEx(hdc, x1, y1, NULL);
 		LineTo(hdc, x2, y2);
 	}
+	else if (m_activeTool == AnnotToolRect || m_activeTool == AnnotToolEllipse)
+	{
+		CRect r = m_previewRect;
+		r.NormalizeRect();
+		if (r.Width() == 0 && r.Height() == 0)
+		{
+			SelectObject(hdc, oldBrush);
+			SelectObject(hdc, oldPen);
+			DeleteObject(pen);
+			return;
+		}
+		r.OffsetRect(m_annotationRect.left, m_annotationRect.top);
+		if (m_activeTool == AnnotToolRect)
+			Rectangle(hdc, r.left, r.top, r.right, r.bottom);
+		else
+			Ellipse(hdc, r.left, r.top, r.right, r.bottom);
+	}
+
 	SelectObject(hdc, oldBrush);
 	SelectObject(hdc, oldPen);
 	DeleteObject(pen);
@@ -1320,23 +1404,28 @@ BOOL CCatchScreenDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		switch (wmId)
 		{
 		case DarkToolBar_CommandBase:
-			if (m_annotation.Undo())
+			if (PerformEditUndo())
 				InvalidateAnnotationView();
 			break;
 		case DarkToolBar_CommandBase + 1:
 			m_activeTool = AnnotToolArrow;
+			SyncAnnotationLayerToSelection();
 			break;
 		case DarkToolBar_CommandBase + 2:
 			m_activeTool = AnnotToolRect;
+			SyncAnnotationLayerToSelection();
 			break;
 		case DarkToolBar_CommandBase + 3:
 			m_activeTool = AnnotToolEllipse;
+			SyncAnnotationLayerToSelection();
 			break;
 		case DarkToolBar_CommandBase + 4:
 			m_activeTool = AnnotToolBrush;
+			SyncAnnotationLayerToSelection();
 			break;
 		case DarkToolBar_CommandBase + 5:
 			m_activeTool = AnnotToolText;
+			SyncAnnotationLayerToSelection();
 			break;
 		case DarkToolBar_CommandBase + 6:
 			if (m_editingTextIndex >= 0)
