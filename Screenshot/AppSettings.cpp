@@ -21,6 +21,7 @@ void AppSettings::SetDefaults()
 	hotkeyModifiers = MOD_CONTROL | MOD_ALT;
 	hotkeyVk = (UINT)'A';
 	copyAndExitAfterSelect = FALSE;
+	saveToFileOnEnterAfterSelect = FALSE;
 	singleMonitorCapture = FALSE;
 	launchAtStartup = FALSE;
 	startMinimizedToTaskbar = FALSE;
@@ -170,6 +171,8 @@ BOOL AppSettings::Load()
 	hotkeyModifiers = (UINT)ParseJsonInt(json, _T("hotkeyModifiers"), (int)hotkeyModifiers);
 	hotkeyVk = (UINT)ParseJsonInt(json, _T("hotkeyVk"), (int)hotkeyVk);
 	copyAndExitAfterSelect = ParseJsonBool(json, _T("copyAndExitAfterSelect"), copyAndExitAfterSelect);
+	saveToFileOnEnterAfterSelect = ParseJsonBool(json, _T("saveToFileOnEnterAfterSelect"),
+		saveToFileOnEnterAfterSelect);
 	singleMonitorCapture = ParseJsonBool(json, _T("singleMonitorCapture"), singleMonitorCapture);
 	launchAtStartup = ParseJsonBool(json, _T("launchAtStartup"), launchAtStartup);
 	startMinimizedToTaskbar = ParseJsonBool(json, _T("startMinimizedToTaskbar"), startMinimizedToTaskbar);
@@ -192,6 +195,7 @@ BOOL AppSettings::Save() const
 		_T("  \"hotkeyModifiers\": %u,\r\n")
 		_T("  \"hotkeyVk\": %u,\r\n")
 		_T("  \"copyAndExitAfterSelect\": %s,\r\n")
+		_T("  \"saveToFileOnEnterAfterSelect\": %s,\r\n")
 		_T("  \"singleMonitorCapture\": %s,\r\n")
 		_T("  \"launchAtStartup\": %s,\r\n")
 		_T("  \"startMinimizedToTaskbar\": %s,\r\n")
@@ -199,6 +203,7 @@ BOOL AppSettings::Save() const
 		_T("}\r\n"),
 		temp.windowWidth, temp.windowHeight, temp.hotkeyModifiers, temp.hotkeyVk,
 		temp.copyAndExitAfterSelect ? _T("true") : _T("false"),
+		temp.saveToFileOnEnterAfterSelect ? _T("true") : _T("false"),
 		temp.singleMonitorCapture ? _T("true") : _T("false"),
 		temp.launchAtStartup ? _T("true") : _T("false"),
 		temp.startMinimizedToTaskbar ? _T("true") : _T("false"),

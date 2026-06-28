@@ -19,12 +19,13 @@
 
 #include "ScreenshotBridge.h"
 #include "SettingsDialog.h"
+#include "StartupUtil.h"
 
 MainWindow::MainWindow(QWidget* parent)
 	: QWidget(parent)
 {
 	setWindowTitle(QStringLiteral("\u622a\u56fe\u5de5\u5177"));
-	setMinimumSize(220, 72);
+	setMinimumSize(360, 72);
 
 	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(16, 16, 16, 16);
@@ -32,14 +33,18 @@ MainWindow::MainWindow(QWidget* parent)
 	auto* row = new QHBoxLayout();
 	m_btnScreenshot = new QPushButton(QStringLiteral("\u622a\u56fe"), this);
 	m_btnSettings = new QPushButton(QStringLiteral("\u8bbe\u7f6e"), this);
+	m_btnOpenFolder = new QPushButton(QStringLiteral("\u6253\u5f00\u6587\u4ef6\u5939"), this);
 	m_btnScreenshot->setMinimumHeight(32);
 	m_btnSettings->setMinimumHeight(32);
+	m_btnOpenFolder->setMinimumHeight(32);
 	row->addWidget(m_btnScreenshot);
 	row->addWidget(m_btnSettings);
+	row->addWidget(m_btnOpenFolder);
 	layout->addLayout(row);
 
 	connect(m_btnScreenshot, &QPushButton::clicked, this, &MainWindow::onScreenshot);
 	connect(m_btnSettings, &QPushButton::clicked, this, &MainWindow::onSettings);
+	connect(m_btnOpenFolder, &QPushButton::clicked, this, &MainWindow::onOpenSaveFolder);
 
 	setupTrayIcon();
 	applySizeFromSettings();
@@ -215,4 +220,9 @@ void MainWindow::onSettings()
 		unregisterHotKey();
 		registerHotKey();
 	}
+}
+
+void MainWindow::onOpenSaveFolder()
+{
+	OpenFolderInExplorer(GetAppSettings().GetEffectiveSaveDirectory());
 }

@@ -28,6 +28,7 @@ protected:
 private slots:
 	void onScreenshot();
 	void onSettings();
+	void onOpenSaveFolder();
 	void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
 	void showFromTray();
 
@@ -41,6 +42,7 @@ private:
 
 	QPushButton* m_btnScreenshot = nullptr;
 	QPushButton* m_btnSettings = nullptr;
+	QPushButton* m_btnOpenFolder = nullptr;
 	QSystemTrayIcon* m_trayIcon = nullptr;
 	QMenu* m_trayMenu = nullptr;
 	bool m_trayReady = false;

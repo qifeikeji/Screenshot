@@ -7,6 +7,7 @@ struct AppSettings
 	UINT hotkeyModifiers;
 	UINT hotkeyVk;
 	BOOL copyAndExitAfterSelect;
+	BOOL saveToFileOnEnterAfterSelect;
 	BOOL singleMonitorCapture;
 	BOOL launchAtStartup;
 	BOOL startMinimizedToTaskbar;

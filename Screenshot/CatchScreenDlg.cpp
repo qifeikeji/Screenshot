@@ -169,7 +169,7 @@ void CCatchScreenDlg::InvalidateSelectionFrame(const CRect& rect)
 	inv.NormalizeRect();
 	if (inv.IsRectEmpty())
 		return;
-	inv.InflateRect(12, 12);
+	inv.InflateRect(48, 28);
 	InvalidateRect(&inv, FALSE);
 }
 
@@ -410,8 +410,11 @@ BOOL CCatchScreenDlg::PreTranslateMessage(MSG* pMsg)
 	{
 		if (m_bFirstDraw && !m_bDraw && HasValidSelection() && m_editingTextIndex < 0 && !m_bAnnotating)
 		{
-			if (CopySelectionToClipboard(m_rectTracker.m_rect))
+			if (GetAppSettings().saveToFileOnEnterAfterSelect)
+			{
+				SaveSelectionToFile(m_rectTracker.m_rect);
 				PostQuitMessage(0);
+			}
 			return TRUE;
 		}
 	}
@@ -462,6 +465,7 @@ void CCatchScreenDlg::OnPaint()
 		if (m_bFirstDraw || m_bDraw)
 		{
 			m_rectTracker.Draw(&memDC);
+			DrawSelectionSizeLabels(memDC);
 			if (m_annotation.IsValid() && !m_annotationRect.IsRectEmpty() && m_annotation.HasVisibleContent())
 				m_annotation.DrawOn(memDC.m_hDC, m_annotationRect.left, m_annotationRect.top);
 			if (m_bAnnotating && (m_activeTool == AnnotToolArrow || m_activeTool == AnnotToolRect ||
@@ -477,15 +481,10 @@ void CCatchScreenDlg::OnPaint()
 
 void CCatchScreenDlg::OnCancel()
 {
-	if (m_bFirstDraw)
-	{
-		CancelCurrentSelection();
-		InvalidateRect(NULL, FALSE);
-	}
-	else
-	{
-		CDialog::OnCancel();
-	}
+	if (m_editingTextIndex >= 0)
+		EndTextEdit(FALSE);
+	CancelCurrentSelection();
+	CDialog::OnCancel();
 }
 
 void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
@@ -913,6 +912,53 @@ void CCatchScreenDlg::InvalidateAnnotationView()
 		return;
 	r.InflateRect(2, 2);
 	InvalidateRect(&r, FALSE);
+}
+
+void CCatchScreenDlg::DrawSelectionSizeLabels(CDC& dc)
+{
+	CRect r = m_rectTracker.m_rect;
+	r.NormalizeRect();
+	const int w = r.Width();
+	const int h = r.Height();
+	if (w <= 0 && h <= 0)
+		return;
+
+	CString wLabel;
+	CString hLabel;
+	wLabel.Format(_T("%d \u50cf\u7d20"), w);
+	hLabel.Format(_T("%d \u50cf\u7d20"), h);
+
+	LOGFONT lf = {};
+	lf.lfHeight = -12;
+	lf.lfWeight = FW_SEMIBOLD;
+	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
+	CFont font;
+	font.CreateFontIndirect(&lf);
+	CFont* pOldFont = dc.SelectObject(&font);
+
+	const int oldBkMode = dc.SetBkMode(OPAQUE);
+	dc.SetTextColor(RGB(255, 255, 255));
+	dc.SetBkColor(RGB(36, 36, 38));
+
+	const CSize wSize = dc.GetTextExtent(wLabel);
+	const CSize hSize = dc.GetTextExtent(hLabel);
+
+	int wx = r.left + (w - wSize.cx) / 2;
+	int wy = r.top - wSize.cy - 4;
+	if (wy < 2)
+		wy = r.top + 2;
+	dc.TextOut(wx, wy, wLabel);
+
+	int hx = r.right + 6;
+	int hy = r.top + (h - hSize.cy) / 2;
+	CRect client;
+	GetClientRect(&client);
+	if (hx + hSize.cx > client.right)
+		hx = r.right - hSize.cx - 4;
+	dc.TextOut(hx, hy, hLabel);
+
+	dc.SetBkMode(oldBkMode);
+	dc.SelectObject(pOldFont);
 }
 
 void CCatchScreenDlg::DrawPreviewShape(HDC hdc) const

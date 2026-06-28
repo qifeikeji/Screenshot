@@ -105,6 +105,7 @@ public:
 	BOOL IsPointInSelection(CPoint client) const;
 	void InvalidateAnnotationView();
 	void DrawPreviewShape(HDC hdc) const;
+	void DrawSelectionSizeLabels(CDC& dc);
 	BOOL PromptAnnotText(CString& text);
 	void FinishSelectionIfValid(const CPoint& endPt);
 	void OpenSaveFolder();

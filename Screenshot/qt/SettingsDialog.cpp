@@ -3,6 +3,7 @@
 #include "StartupUtil.h"
 
 #include "SettingsDialog.h"
+#include "StartupUtil.h"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -102,6 +103,11 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 	m_checkCopyExit->setChecked(s.copyAndExitAfterSelect != FALSE);
 	layout->addWidget(m_checkCopyExit);
 
+	m_checkSaveOnEnter = new QCheckBox(
+		QStringLiteral("\u6846\u9009\u540e\u6309\u56de\u8f66\u81ea\u52a8\u4fdd\u5b58\u5230\u4fdd\u5b58\u8def\u5f84"), this);
+	m_checkSaveOnEnter->setChecked(s.saveToFileOnEnterAfterSelect != FALSE);
+	layout->addWidget(m_checkSaveOnEnter);
+
 	m_checkSingleMonitor = new QCheckBox(
 		QStringLiteral("\u5355\u663e\u793a\u5668\u622a\u56fe\uff08\u5feb\u6377\u952e\u65f6\u53ea\u622a\u9f20\u6807\u6240\u5728\u663e\u793a\u5668\uff09"), this);
 	m_checkSingleMonitor->setChecked(s.singleMonitorCapture != FALSE);
@@ -117,9 +123,12 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 	layout->addWidget(m_checkStartMinimized);
 
 	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+	auto* openFolderBtn = new QPushButton(QStringLiteral("\u6253\u5f00\u6587\u4ef6\u5939"), this);
+	buttons->addButton(openFolderBtn, QDialogButtonBox::ActionRole);
 	layout->addWidget(buttons);
 
 	connect(browseBtn, &QPushButton::clicked, this, &SettingsDialog::onBrowseSaveDir);
+	connect(openFolderBtn, &QPushButton::clicked, this, &SettingsDialog::onOpenSaveFolder);
 	connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::onAccept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
@@ -130,6 +139,11 @@ void SettingsDialog::onBrowseSaveDir()
 		this, QStringLiteral("\u9009\u62e9\u4fdd\u5b58\u76ee\u5f55"), m_saveDirEdit->text());
 	if (!dir.isEmpty())
 		m_saveDirEdit->setText(dir);
+}
+
+void SettingsDialog::onOpenSaveFolder()
+{
+	OpenFolderInExplorer(GetAppSettings().GetEffectiveSaveDirectory());
 }
 
 void SettingsDialog::onAccept()
@@ -153,6 +167,7 @@ void SettingsDialog::onAccept()
 	cfg.hotkeyModifiers = mod;
 	cfg.hotkeyVk = vk;
 	cfg.copyAndExitAfterSelect = m_checkCopyExit->isChecked() ? TRUE : FALSE;
+	cfg.saveToFileOnEnterAfterSelect = m_checkSaveOnEnter->isChecked() ? TRUE : FALSE;
 	cfg.singleMonitorCapture = m_checkSingleMonitor->isChecked() ? TRUE : FALSE;
 	cfg.launchAtStartup = m_checkLaunchAtStartup->isChecked() ? TRUE : FALSE;
 	cfg.startMinimizedToTaskbar = m_checkStartMinimized->isChecked() ? TRUE : FALSE;
