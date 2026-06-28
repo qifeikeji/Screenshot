@@ -108,7 +108,12 @@ void CTextAnnotOverlay::MeasureAndResizeBlock(TextAnnotBlock& block, int maxWrap
 	CString drawText = block.text;
 	if (drawText.IsEmpty())
 		drawText = _T(" ");
-	dc.DrawText(drawText, calc, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
+	UINT fmt = DT_LEFT | DT_TOP | DT_CALCRECT | DT_NOPREFIX | DT_EXPANDTABS;
+	if (drawText.Find(_T('\n')) < 0)
+		fmt |= DT_SINGLELINE;
+	else
+		fmt |= DT_WORDBREAK;
+	dc.DrawText(drawText, calc, fmt);
 
 	if (pOld)
 		dc.SelectObject(pOld);
@@ -122,15 +127,17 @@ void CTextAnnotOverlay::MeasureAndResizeBlock(TextAnnotBlock& block, int maxWrap
 		CRect calc2(0, 0, w - kTextPad * 2, 0);
 		CClientDC dc2(nullptr);
 		CFont* pOld2 = pFont ? dc2.SelectObject(pFont) : nullptr;
-		dc2.DrawText(drawText, calc2, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
+		dc2.DrawText(drawText, calc2, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX | DT_EXPANDTABS);
 		if (pOld2)
 			dc2.SelectObject(pOld2);
 		h = std::max(kMinBoxH, calc2.Height() + kTextPad * 2);
 	}
 
-	const int cx = block.rect.left + block.rect.Width() / 2;
-	const int cy = block.rect.top + block.rect.Height() / 2;
-	block.rect.SetRect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+	CRect box = block.rect;
+	box.NormalizeRect();
+	const int left = box.left;
+	const int top = box.top;
+	block.rect.SetRect(left, top, left + w, top + h);
 }
 
 void CTextAnnotOverlay::DrawAll(CDC& dc, int skipEditIndex, CFont* pFont, COLORREF borderColor, COLORREF textColor) const

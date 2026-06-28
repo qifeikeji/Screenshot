@@ -141,6 +141,8 @@ CCatchScreenDlg::CCatchScreenDlg(CWnd* pParent /*=NULL*/)
 	m_dragTextIndex = -1;
 	m_textCaretPos = 0;
 	m_bCaretVisible = TRUE;
+	m_bPendingReselect = FALSE;
+	m_pendingReselectPt = CPoint(0, 0);
 }
 
 void CCatchScreenDlg::DoDataExchange(CDataExchange* pDX)
@@ -183,6 +185,27 @@ void CCatchScreenDlg::InvalidateAroundRect(const CRect& area)
 		ScreenToClient(&tb);
 		inv.UnionRect(&inv, &tb);
 	}
+	InvalidateRect(&inv, FALSE);
+}
+
+bool CCatchScreenDlg::HasValidSelection() const
+{
+	if (!m_bFirstDraw || m_bDraw)
+		return false;
+	CRect r = m_rectTracker.m_rect;
+	r.NormalizeRect();
+	return r.Width() > 4 && r.Height() > 4;
+}
+
+void CCatchScreenDlg::InvalidateTextBlockRegion(const CRect& blockRect) const
+{
+	CRect inv = blockRect;
+	inv.NormalizeRect();
+	if (inv.IsRectEmpty())
+		return;
+	inv.InflateRect(4, 4);
+	CRect handle = CTextAnnotOverlay::DragHandleRect(inv);
+	inv.UnionRect(&inv, &handle);
 	InvalidateRect(&inv, FALSE);
 }
 
@@ -394,6 +417,22 @@ void CCatchScreenDlg::OnCancel()
 
 void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
+	if (m_bPendingReselect && (nFlags & MK_LBUTTON))
+	{
+		const int dx = abs(point.x - m_pendingReselectPt.x);
+		const int dy = abs(point.y - m_pendingReselectPt.y);
+		if (dx >= kReselectDragThresholdPx || dy >= kReselectDragThresholdPx)
+		{
+			m_bPendingReselect = FALSE;
+			BeginSelectionAt(m_pendingReselectPt);
+		}
+		else
+		{
+			CDialog::OnMouseMove(nFlags, point);
+			return;
+		}
+	}
+
 	if (m_dragTextIndex >= 0 && (nFlags & MK_LBUTTON))
 	{
 		TextAnnotBlock* p = m_textOverlay.At((size_t)m_dragTextIndex);
@@ -441,8 +480,13 @@ void CCatchScreenDlg::OnMouseMove(UINT nFlags, CPoint point)
 
 	if (m_bDraw && m_bToolBarShown)
 	{
-		m_toolBar.HideBar();
-		m_bToolBarShown = FALSE;
+		CRect dragRect = m_rectTracker.m_rect;
+		dragRect.NormalizeRect();
+		if (dragRect.Width() > kReselectDragThresholdPx || dragRect.Height() > kReselectDragThresholdPx)
+		{
+			m_toolBar.HideBar();
+			m_bToolBarShown = FALSE;
+		}
 	}
 	if (m_bDraw)
 	{
@@ -514,7 +558,7 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 		CRect box = m_textOverlay.MakeBoxAtPoint(point, m_textOverlay.Count());
 		m_textOverlay.AddBlock(box, _T("\u6587\u672c"));
 		BeginTextEdit((int)m_textOverlay.Count() - 1);
-		InvalidateAroundRect(box);
+		InvalidateTextBlockRegion(box);
 		CDialog::OnLButtonDown(nFlags, point);
 		return;
 	}
@@ -545,11 +589,7 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 		const bool onResizeHandle = (nHitTest >= CMyTracker::hitTopLeft &&
 			nHitTest <= CMyTracker::hitLeft);
 		const bool allowResize = (m_activeTool == AnnotToolNone);
-		if (nHitTest < 0 || nHitTest == CMyTracker::hitMiddle || !onResizeHandle)
-		{
-			BeginSelectionAt(point);
-		}
-		else if (m_bFirstDraw && onResizeHandle && allowResize)
+		if (m_bFirstDraw && onResizeHandle && allowResize)
 		{
 			m_rectTracker.Track(this, point, TRUE);
 			SyncAnnotationLayerToSelection();
@@ -558,6 +598,19 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 			m_bToolBarShown = TRUE;
 			InvalidateAroundRect(m_rectTracker.m_rect);
 		}
+		else if (nHitTest < 0 || nHitTest == CMyTracker::hitMiddle || !onResizeHandle || !allowResize)
+		{
+			if (HasValidSelection() && m_activeTool != AnnotToolNone)
+			{
+				// 已有选区且在使用标注/文本工具时，单击不重新框选
+			}
+			else
+			{
+				m_bPendingReselect = TRUE;
+				m_pendingReselectPt = point;
+				SetCapture();
+			}
+		}
 	}
 
 	CDialog::OnLButtonDown(nFlags, point);
@@ -565,6 +618,16 @@ void CCatchScreenDlg::OnLButtonDown(UINT nFlags, CPoint point)
 
 void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	if (m_bPendingReselect)
+	{
+		m_bPendingReselect = FALSE;
+		if (GetCapture() == this)
+			ReleaseCapture();
+		m_bLBtnDown = FALSE;
+		CDialog::OnLButtonUp(nFlags, point);
+		return;
+	}
+
 	if (m_dragTextIndex >= 0)
 	{
 		if (GetCapture() == this)
@@ -621,7 +684,13 @@ void CCatchScreenDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	if (wasDrawing && m_bFirstDraw)
 		FinishSelectionIfValid(point);
 	SyncAnnotationLayerToSelection();
-	InvalidateAroundRect(m_rectTracker.m_rect);
+	if (wasDrawing)
+	{
+		CRect r = m_rectTracker.m_rect;
+		r.NormalizeRect();
+		if (r.Width() > 4 && r.Height() > 4)
+			InvalidateSelectionFrame(r);
+	}
 	CDialog::OnLButtonUp(nFlags, point);
 }
 
@@ -631,19 +700,21 @@ void CCatchScreenDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 	if (textHit >= 0)
 	{
 		BeginTextEdit(textHit);
-		CDialog::OnLButtonDblClk(nFlags, point);
 		return;
 	}
 
-	int nHitTest;
-	nHitTest = m_rectTracker.HitTest(point);
+	if (m_bFirstDraw && !m_bDraw && m_activeTool == AnnotToolText && IsPointInSelection(point))
+		return;
 
-	//????????????????
-	if (nHitTest == 8)
+	if (m_activeTool == AnnotToolNone)
 	{
-		//????????????????,bSave ?TRUE,
-		CopySelectionToClipboard(m_rectTracker.m_rect);
-		PostQuitMessage(0);
+		const int nHitTest = m_rectTracker.HitTest(point);
+		if (nHitTest == CMyTracker::hitMiddle)
+		{
+			CopySelectionToClipboard(m_rectTracker.m_rect);
+			PostQuitMessage(0);
+			return;
+		}
 	}
 
 	CDialog::OnLButtonDblClk(nFlags, point);
@@ -848,7 +919,7 @@ void CCatchScreenDlg::EndTextEdit(BOOL commit)
 	m_editingTextIndex = -1;
 	m_textCaretPos = 0;
 	if (!dirty.IsRectEmpty())
-		InvalidateAroundRect(dirty);
+		InvalidateTextBlockRegion(dirty);
 }
 
 void CCatchScreenDlg::BeginTextEdit(int index)
@@ -865,7 +936,7 @@ void CCatchScreenDlg::BeginTextEdit(int index)
 	SyncTextBlockLayout(index);
 	SetFocus();
 	SetTimer(kTextCaretTimerId, 500, nullptr);
-	InvalidateAroundRect(p->rect);
+	InvalidateTextBlockRegion(p->rect);
 }
 
 void CCatchScreenDlg::SyncTextBlockLayout(int index)
@@ -888,7 +959,7 @@ void CCatchScreenDlg::InsertCharAtCaret(TCHAR ch)
 	p->text.Insert(m_textCaretPos, ch);
 	m_textCaretPos++;
 	SyncTextBlockLayout(m_editingTextIndex);
-	InvalidateAroundRect(p->rect);
+	InvalidateTextBlockRegion(p->rect);
 }
 
 void CCatchScreenDlg::DeleteCharBeforeCaret()
@@ -901,7 +972,7 @@ void CCatchScreenDlg::DeleteCharBeforeCaret()
 	p->text.Delete(m_textCaretPos - 1, 1);
 	m_textCaretPos--;
 	SyncTextBlockLayout(m_editingTextIndex);
-	InvalidateAroundRect(p->rect);
+	InvalidateTextBlockRegion(p->rect);
 }
 
 void CCatchScreenDlg::OnTimer(UINT_PTR nIDEvent)
@@ -911,7 +982,7 @@ void CCatchScreenDlg::OnTimer(UINT_PTR nIDEvent)
 		m_bCaretVisible = !m_bCaretVisible;
 		const TextAnnotBlock* p = m_textOverlay.At((size_t)m_editingTextIndex);
 		if (p)
-			InvalidateAroundRect(p->rect);
+			InvalidateTextBlockRegion(p->rect);
 		return;
 	}
 	CDialog::OnTimer(nIDEvent);

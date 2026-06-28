@@ -67,7 +67,13 @@ public:
 	CPoint m_dragTextGrabOffset;
 	int m_textCaretPos;
 	BOOL m_bCaretVisible;
+	BOOL m_bPendingReselect;
+	CPoint m_pendingReselectPt;
 	static const UINT kTextCaretTimerId = 6001;
+	static const int kReselectDragThresholdPx = 10;
+
+	bool HasValidSelection() const;
+	void InvalidateTextBlockRegion(const CRect& blockRect) const;
 
 public:
 	HBITMAP CopyScreenToBitmap(LPRECT lpRect, BOOL bSave = FALSE);
