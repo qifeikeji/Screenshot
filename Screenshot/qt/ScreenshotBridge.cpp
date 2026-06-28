@@ -75,7 +75,7 @@ void UnregisterGlobalScreenshotHotKey(HWND hwnd, UINT id)
 }
 
 #include <QMessageBox>
-#include <QPushButton>
+#include <QAbstractButton>
 
 void ApplyQtDarkTheme(QApplication* app)
 {
@@ -105,7 +105,7 @@ void ShowAlreadyRunningMessage()
 	box.setInformativeText(QStringLiteral("\u8bf7\u4ece\u901a\u77e5\u533a\u57df\u56fe\u6807\u6216\u5df2\u6253\u5f00\u7684\u4e3b\u7a97\u53e3\u4f7f\u7528\u622a\u56fe\u5de5\u5177\u3002"));
 	box.setStandardButtons(QMessageBox::Ok);
 	box.setDefaultButton(QMessageBox::Ok);
-	if (QPushButton* ok = box.button(QMessageBox::Ok))
+	if (QAbstractButton* ok = box.button(QMessageBox::Ok))
 		ok->setText(QStringLiteral("\u786e\u5b9a"));
 	box.setWindowModality(Qt::ApplicationModal);
 	box.exec();
