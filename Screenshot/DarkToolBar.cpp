@@ -72,7 +72,7 @@ BOOL CDarkToolBar::Create(CWnd* pParent)
 		if (ImageFromIDResource(kIconIds[i], _T("PNG"), pImage) && pImage)
 		{
 			HBITMAP hb = NULL;
-			pImage->GetHBitmap(Color(0, 0, 0, 0), &hb);
+			pImage->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hb);
 			ImageList_Add(m_hImageList, hb, NULL);
 			DeleteObject(hb);
 			delete pImage;

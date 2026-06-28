@@ -201,8 +201,10 @@ CRect CCatchScreenDlg::SelectionFrameInvalidRect(CRect rect) const
 
 	CRect inv = rect;
 	inv.InflateRect(12, 12);
-	inv.UnionRect(&inv, &TopSizeLabelInvalidZone(rect));
-	inv.UnionRect(&inv, &RightSizeLabelInvalidZone(rect));
+	const CRect topLabel = TopSizeLabelInvalidZone(rect);
+	const CRect rightLabel = RightSizeLabelInvalidZone(rect);
+	inv.UnionRect(&inv, &topLabel);
+	inv.UnionRect(&inv, &rightLabel);
 	inv.InflateRect(2, 2);
 	return inv;
 }
@@ -218,7 +220,8 @@ void CCatchScreenDlg::InvalidateSelectionFrame(const CRect& rect)
 void CCatchScreenDlg::InvalidateSelectionFrameUnion(const CRect& a, const CRect& b)
 {
 	CRect inv = SelectionFrameInvalidRect(a);
-	inv.UnionRect(&inv, &SelectionFrameInvalidRect(b));
+	const CRect invB = SelectionFrameInvalidRect(b);
+	inv.UnionRect(&inv, &invB);
 	if (inv.IsRectEmpty())
 		return;
 	InvalidateRect(&inv, FALSE);
